@@ -478,6 +478,12 @@ report, with explicit additional exits for invalid coverage and failed test runs
   Prolog/Datalog rules engine (§5.5).
 - **Dependencies:** `prism` and `json` (both stdlib on CRuby ≥ 3.3) at runtime;
   SimpleCov ≥ 1.0 required in the analyzed project as the coverage producer.
+  **Development environment:** the entire crap4ruby stack is built, run, tested,
+  and packaged through devenv. Bootstrap `devenv.nix` and `devenv.yaml` before
+  scaffolding the gem; local development and CI must execute Ruby, Bundler, Rake,
+  gem, and test commands through `devenv shell -- <command>`. A missing or broken
+  devenv shell is a blocking environment failure, never permission to fall back to
+  a system Ruby or a version manager.
   **CRuby only:** JRuby supports line coverage only, so the required branch and
   method criteria can never be satisfied there — documented as unsupported.
 
