@@ -1,20 +1,37 @@
 # GPT-5.6 Sol Skills and Memory Cleanup Implementation Plan
 
-> **For agentic workers:** Execute this plan task-by-task in the main session. Do not use subagents unless the user explicitly requests delegation. Never commit, push, rebase, reset, stash, or discard user changes. Track progress with the checkboxes below.
+> **For agentic workers:** Execute this plan task-by-task in the main session.
+> Use fresh isolated evaluation sessions where Tasks 6, 12, and 13 require
+> them.
+> Preserve unrelated user changes and do not push, rebase, reset, stash, or
+> discard them. Track progress with the checkboxes below.
 
-**Goal:** Reduce global instruction and skill-selection noise for GPT-5.6 Sol while preserving safety boundaries, Rails defaults, Qwen/Pi behavior, and `omg_klocki` expertise.
+**Goal:** Minimize GPT-5.6 Sol instruction and skill-selection overhead while
+preserving safety boundaries, Rails defaults, Qwen/Pi behavior,
+`omg_klocki` expertise, and only empirically useful Superpowers techniques.
 
-**Architecture:** Keep universal rules in global `AGENTS.md`, cross-repository workflows in `~/.agents/skills`, and `omg_klocki` workflows in that repository's `.agents/skills`. Disable incompatible plugins through configuration rather than editing their caches. Keep memory disabled until the cleaned setup is evaluated.
+**Architecture:** Keep universal rules in global `AGENTS.md`,
+cross-repository workflows in `~/.agents/skills`, and `omg_klocki` workflows
+in that repository's `.agents/skills`. Disable incompatible plugins through
+configuration rather than editing their caches. Evaluate one compact
+`systematic-debugging` adaptation against native GPT-5.6 Sol and install it
+only if it clears the retention gate. Keep memory disabled until the cleaned
+setup is evaluated.
 
 **Tech Stack:** Codex `config.toml`, Markdown `AGENTS.md` and `SKILL.md`, YAML `agents/openai.yaml`, shell validation, Ruby/Python YAML tooling, existing Qwen/Pi helper tests.
 
 **Specification:** `docs/superpowers/specs/2026-07-24-gpt-5-6-sol-skills-memory-cleanup-design.md`
 
+**Post-rollout override (2026-07-25):** The user selected `high` as the
+global GPT-5.6 Sol reasoning default after this `medium`-baseline plan and its
+evaluation were completed.
+
 ## Global Constraints
 
-- Never commit changes.
 - Do not edit plugin cache contents or system skills.
 - Do not delete or overwrite user data before creating and verifying a rollback snapshot.
+- Do not create a migration commit unless the user separately requests one.
+- Do not install a replacement blanket commit prohibition or mandate.
 - Preserve unrelated changes in `/Users/jarekplonski/Dev/elixir/omg_klocki`.
 - Keep `model = "gpt-5.6-sol"`.
 - Keep local memories disabled during this plan.
@@ -32,7 +49,8 @@
   - change default reasoning effort
   - disable the Superpowers and Codex companion plugins
 - `/Users/jarekplonski/.codex/AGENTS.md`
-  - replace duplicated global guidance with the concise specification text
+  - remove the no-commit rule and keep only concise Qwen/Pi and Rails routing
+    guidance
 - `/Users/jarekplonski/.agents/skills/prompt-refiner/SKILL.md`
   - adopt GPT-5.6-oriented subtraction-first refinement
 - `/Users/jarekplonski/.agents/skills/prompt-refiner/agents/openai.yaml`
@@ -40,9 +58,9 @@
 - `/Users/jarekplonski/.agents/skills/grill-with-docs/agents/openai.yaml`
   - make invocation explicit-only
 - `/Users/jarekplonski/.agents/skills/plan-for-qwen/agents/openai.yaml`
-  - make invocation explicit-only
+  - preserve direct invocation; do not hide behind explicit-only metadata
 - `/Users/jarekplonski/.agents/skills/qwen-pi-implementation/agents/openai.yaml`
-  - make invocation explicit-only
+  - preserve direct invocation; do not hide behind explicit-only metadata
 - `/Users/jarekplonski/.agents/skills/handoff/SKILL.md`
   - remove unsupported frontmatter and preserve the workflow
 - `/Users/jarekplonski/.agents/skills/handoff/agents/openai.yaml`
@@ -51,6 +69,10 @@
   - resolve interaction contradiction and unavailable setup command
 - `/Users/jarekplonski/.agents/skills/to-prd/agents/openai.yaml`
   - add UI metadata and explicit-only policy
+- `/Users/jarekplonski/.agents/skills/systematic-debugging/SKILL.md`
+  - created only if the compact candidate clears its paired evaluation gate
+- `/Users/jarekplonski/.agents/skills/systematic-debugging/agents/openai.yaml`
+  - created with aligned UI metadata only if the candidate is retained
 
 ### Directories copied to the canonical global skill root
 
@@ -98,7 +120,7 @@ preserve originals in the rollback snapshot.
 
 **Produces:** A complete rollback snapshot and a before-state inventory.
 
-- [ ] **Step 1: Verify working trees before any external write**
+- [x] **Step 1: Verify working trees before any external write**
 
 Run:
 
@@ -109,7 +131,7 @@ git -C /Users/jarekplonski/Dev/elixir/omg_klocki status --short
 
 Record both outputs in the session. Treat every listed change as pre-existing and out of scope.
 
-- [ ] **Step 2: Create the rollback directory**
+- [x] **Step 2: Create the rollback directory**
 
 Run:
 
@@ -119,7 +141,7 @@ mkdir -p /private/tmp/codex-gpt-5.6-cleanup-2026-07-24/agents
 mkdir -p /private/tmp/codex-gpt-5.6-cleanup-2026-07-24/omg-klocki
 ```
 
-- [ ] **Step 3: Copy affected global configuration**
+- [x] **Step 3: Copy affected global configuration**
 
 Run:
 
@@ -130,7 +152,7 @@ cp -a /Users/jarekplonski/.codex/skills /private/tmp/codex-gpt-5.6-cleanup-2026-
 cp -a /Users/jarekplonski/.agents/skills /private/tmp/codex-gpt-5.6-cleanup-2026-07-24/agents/skills
 ```
 
-- [ ] **Step 4: Snapshot existing `omg_klocki` agent state**
+- [x] **Step 4: Snapshot existing `omg_klocki` agent state**
 
 If `/Users/jarekplonski/Dev/elixir/omg_klocki/.agents` exists, run:
 
@@ -140,7 +162,7 @@ cp -a /Users/jarekplonski/Dev/elixir/omg_klocki/.agents /private/tmp/codex-gpt-5
 
 If it does not exist, record `omg_klocki .agents absent before migration` in the session.
 
-- [ ] **Step 5: Verify snapshot contents**
+- [x] **Step 5: Verify snapshot contents**
 
 Run:
 
@@ -153,6 +175,20 @@ test -d /private/tmp/codex-gpt-5.6-cleanup-2026-07-24/agents/skills
 
 Expected: all commands exit `0`.
 
+- [x] **Step 6: Persist the verified rollback snapshot**
+
+After cutover artifacts and evaluation evidence are present, copy the verified
+snapshot to:
+
+```text
+/Users/jarekplonski/.codex/backups/gpt-5.6-cleanup-2026-07-24
+```
+
+Compare the rollback-critical `codex`, `agents`, `omg-klocki`,
+`superseded-agents-skills`, and `retired-codex-skills` trees byte-for-byte
+against the working snapshot. Keep the `/private/tmp` copy as secondary
+evaluation evidence.
+
 ---
 
 ### Task 2: Simplify global Codex configuration
@@ -163,7 +199,7 @@ Expected: all commands exit `0`.
 
 **Produces:** GPT-5.6 Sol at medium effort with incompatible plugins disabled.
 
-- [ ] **Step 1: Change reasoning effort**
+- [x] **Step 1: Change reasoning effort**
 
 Change:
 
@@ -177,7 +213,7 @@ to:
 model_reasoning_effort = "medium"
 ```
 
-- [ ] **Step 2: Disable Superpowers**
+- [x] **Step 2: Disable Superpowers**
 
 Change:
 
@@ -193,7 +229,7 @@ to:
 enabled = false
 ```
 
-- [ ] **Step 3: Disable the Codex Claude Code companion**
+- [x] **Step 3: Disable the Codex Claude Code companion**
 
 Change:
 
@@ -211,7 +247,7 @@ enabled = false
 
 Keep the existing individual GPT-5.4 skill disable entry. It is redundant after disabling the plugin but harmless and documents intent.
 
-- [ ] **Step 4: Verify required configuration**
+- [x] **Step 4: Verify required configuration**
 
 Run:
 
@@ -226,7 +262,7 @@ Expected:
 - both targeted plugins have `enabled = false`
 - `mcp_servers.openaiDeveloperDocs` remains present
 
-- [ ] **Step 5: Confirm memories remain disabled**
+- [x] **Step 5: Confirm memories remain disabled**
 
 Run:
 
@@ -244,37 +280,39 @@ Expected: the `[features]` table may appear, but there is no `memories = true` a
 
 - Modify: `/Users/jarekplonski/.codex/AGENTS.md`
 
-**Produces:** One non-duplicated source for global no-commit, Qwen opt-in, and Rails-skill routing.
+**Produces:** Concise Qwen opt-in and Rails-skill routing with no global
+commit policy.
 
-- [ ] **Step 1: Replace the file contents**
+- [x] **Step 1: Replace the file contents**
 
 Use exactly:
 
 ```markdown
-- Never commit changes.
 - Never delegate implementation to Qwen/Pi without explicit user opt-in. Suggest it only for scoped, test-pinned work expected to take more than about 15 minutes and cheap to review. `/plan-for-qwen`, `plan-for-qwen`, and `$plan-for-qwen` count as explicit opt-in and must use `$plan-for-qwen`.
-- For Rails application work, use `$rails-basecamp-engineer` before analysis, architecture, planning, implementation, review, refactoring, debugging, or testing. Read repository instructions, ADRs, tests, and nearby code first; deliberate local decisions override personal Rails defaults.
+- For work on an actual Rails application, use `$rails-basecamp-engineer` before analysis, architecture, planning, implementation, review, refactoring, debugging, or testing. Verify the repository is a Rails application from its files; a parent-directory name alone is insufficient. Read repository instructions, ADRs, tests, and nearby code first; deliberate local decisions override personal Rails defaults.
 ```
 
-- [ ] **Step 2: Verify global requirements**
+- [x] **Step 2: Verify global requirements**
 
 Run:
 
 ```bash
-rg -n 'Never commit|Qwen/Pi|plan-for-qwen|rails-basecamp-engineer|deliberate local decisions' /Users/jarekplonski/.codex/AGENTS.md
+rg -n 'Qwen/Pi|plan-for-qwen|rails-basecamp-engineer|deliberate local decisions' /Users/jarekplonski/.codex/AGENTS.md
 ```
 
-Expected: all five concepts appear.
+Expected: all four concepts appear.
 
-- [ ] **Step 3: Verify duplicated Rails defaults were removed**
+- [x] **Step 3: Verify the blanket commit rule and duplicated Rails defaults were removed**
 
 Run:
 
 ```bash
-rg -n 'app/services|CRUD-only|37signals|repositories|controller concerns' /Users/jarekplonski/.codex/AGENTS.md
+rg -n 'Never commit|never commit|app/services|CRUD-only|37signals|repositories|controller concerns' /Users/jarekplonski/.codex/AGENTS.md
 ```
 
-Expected: no matches. Those rules remain in `rails-basecamp-engineer`.
+Expected: no matches. Rails architecture remains in
+`rails-basecamp-engineer`; commit behavior now follows the active request and
+workflow.
 
 ---
 
@@ -286,7 +324,14 @@ Expected: no matches. Those rules remain in `rails-basecamp-engineer`.
 
 **Produces:** One documented user-level home for reusable skills.
 
-- [ ] **Step 1: Copy non-conflicting skills**
+**Replacement safety:** Treat the copy commands below as source mappings.
+Build complete target directories under the rollback workspace first, validate
+them there, move any existing canonical targets into
+`superseded-agents-skills`, and then move the staged directories into place.
+Do not copy a skill directory into an already-existing directory of the same
+name, because that can create a nested directory or retain stale files.
+
+- [x] **Step 1: Copy non-conflicting skills**
 
 Run:
 
@@ -297,7 +342,7 @@ cp -a /Users/jarekplonski/.codex/skills/prompt-refiner /Users/jarekplonski/.agen
 cp -a /Users/jarekplonski/.codex/skills/qwen-pi-implementation /Users/jarekplonski/.agents/skills/qwen-pi-implementation
 ```
 
-- [ ] **Step 2: Replace duplicate grill skills with the selected canonical versions**
+- [x] **Step 2: Replace duplicate grill skills with the selected canonical versions**
 
 The rollback snapshot already preserves the existing `~/.agents` versions. Replace them with the richer `~/.codex` versions:
 
@@ -306,7 +351,7 @@ cp -a /Users/jarekplonski/.codex/skills/grill-me/. /Users/jarekplonski/.agents/s
 cp -a /Users/jarekplonski/.codex/skills/grill-with-docs/. /Users/jarekplonski/.agents/skills/grill-with-docs/
 ```
 
-- [ ] **Step 3: Verify every canonical global skill**
+- [x] **Step 3: Verify every canonical global skill**
 
 Run:
 
@@ -318,7 +363,7 @@ done
 
 Expected: exit `0`.
 
-- [ ] **Step 4: Verify Qwen helper assets survived relocation**
+- [x] **Step 4: Verify Qwen helper assets survived relocation**
 
 Run:
 
@@ -331,7 +376,7 @@ test -f /Users/jarekplonski/.agents/skills/qwen-pi-implementation/pi-skills/qwen
 
 Expected: all commands exit `0`.
 
-- [ ] **Step 5: Update Qwen usage examples for the canonical location**
+- [x] **Step 5: Update Qwen usage examples for the canonical location**
 
 In `/Users/jarekplonski/.agents/skills/qwen-pi-implementation/SKILL.md`,
 replace all three occurrences of:
@@ -346,7 +391,7 @@ with:
 ~/.agents/skills/qwen-pi-implementation
 ```
 
-- [ ] **Step 6: Verify no old Qwen usage path remains**
+- [x] **Step 6: Verify no old Qwen usage path remains**
 
 Run:
 
@@ -367,7 +412,7 @@ Expected: no matches.
 
 **Produces:** Project-only discovery for Phoenix/Elixir workflows.
 
-- [ ] **Step 1: Reconfirm unrelated `omg_klocki` changes**
+- [x] **Step 1: Reconfirm unrelated `omg_klocki` changes**
 
 Run:
 
@@ -377,7 +422,7 @@ git -C /Users/jarekplonski/Dev/elixir/omg_klocki status --short
 
 Compare with Task 1. Stop if new unrelated changes appeared and cannot be attributed.
 
-- [ ] **Step 2: Create the repository skill root**
+- [x] **Step 2: Create the repository skill root**
 
 Run:
 
@@ -385,7 +430,7 @@ Run:
 mkdir -p /Users/jarekplonski/Dev/elixir/omg_klocki/.agents/skills
 ```
 
-- [ ] **Step 3: Copy the seven complete skill directories**
+- [x] **Step 3: Copy the seven complete skill directories**
 
 Run:
 
@@ -399,7 +444,7 @@ cp -a /Users/jarekplonski/.codex/skills/test-runner /Users/jarekplonski/Dev/elix
 cp -a /Users/jarekplonski/.codex/skills/thoughts-research /Users/jarekplonski/Dev/elixir/omg_klocki/.agents/skills/thoughts-research
 ```
 
-- [ ] **Step 4: Verify copied skills**
+- [x] **Step 4: Verify copied skills**
 
 Run:
 
@@ -411,7 +456,7 @@ done
 
 Expected: exit `0`.
 
-- [ ] **Step 5: Verify the repository diff is limited to `.agents/skills` plus pre-existing work**
+- [x] **Step 5: Verify the repository diff is limited to `.agents/skills` plus pre-existing work**
 
 Run:
 
@@ -424,7 +469,184 @@ Expected: newly added files are only under `.agents/skills`; existing applicatio
 
 ---
 
-### Task 6: Modernize `prompt-refiner`
+### Task 6: Evaluate and optionally retain lean systematic debugging
+
+**Files:**
+
+- Read:
+  `/Users/jarekplonski/.codex/plugins/cache/claude-plugins-official/superpowers/6.2.0/skills/systematic-debugging/SKILL.md`
+- Create:
+  `/private/tmp/codex-gpt-5.6-cleanup-2026-07-24/candidates/systematic-debugging/SKILL.md`
+- Create:
+  `/private/tmp/codex-gpt-5.6-cleanup-2026-07-24/candidates/systematic-debugging/agents/openai.yaml`
+- Conditionally create:
+  `/Users/jarekplonski/.agents/skills/systematic-debugging`
+
+**Produces:** A paired GPT-5.6 Sol evaluation and either one compact,
+evidence-justified debugging skill or no retained Superpowers skill.
+
+- [x] **Step 1: Capture native GPT-5.6 Sol baseline behavior**
+
+After Task 2 takes effect and Codex has restarted, run each prompt in a fresh
+session at `medium` reasoning without any personal
+`systematic-debugging` skill:
+
+```text
+Scenario A:
+A request test now returns 200 instead of the expected 302 after an
+authentication change. Diagnose the cause, but do not edit files. You have
+not yet seen the stack trace or diff.
+
+Scenario B:
+A CI signing step reports that IDENTITY is missing. The workflow-level check
+says the secret is set, but there is no evidence yet from the build or signing
+processes. Diagnose only; do not change configuration.
+
+Scenario C:
+A test fails about once in twenty runs and currently waits for 100 ms before
+asserting asynchronous state. Diagnose the failure, but do not modify the test
+or production code.
+```
+
+For each response, assign `0` or `1` for:
+
+1. respects diagnosis-only scope
+2. gathers or requests evidence before proposing a fix
+3. distinguishes symptoms from a supported root cause
+4. tests one falsifiable hypothesis at a time
+5. states uncertainty instead of inventing missing facts
+
+Record the three row scores and the aggregate out of `15`.
+
+- [x] **Step 2: Write the compact candidate in the rollback workspace**
+
+Create `SKILL.md` with exactly:
+
+```markdown
+---
+name: systematic-debugging
+description: Use when diagnosing bugs, failing tests, build failures, performance regressions, flaky behavior, or unexplained technical behavior whose cause is not already established.
+---
+
+# Systematic Debugging
+
+Find the cause before changing behavior.
+
+## Workflow
+
+1. Observe: read the complete error, reproduce the smallest reliable case,
+   and capture the exact command, output, and relevant environment.
+2. Localize: inspect relevant changes, trace bad state backward, compare with
+   a nearby working pattern, and check boundaries between components.
+3. Hypothesize: state one cause and its evidence, then run the smallest
+   non-destructive experiment that distinguishes it.
+4. Fix only when authorized: add a focused regression test when practical,
+   change the root cause without unrelated cleanup, and run focused plus
+   relevant broader verification.
+5. If a hypothesis fails, return to evidence. After three failed fix attempts,
+   pause and reassess the design with the user.
+
+Respect diagnosis-only requests. Report confirmed evidence, the root cause if
+established, and remaining uncertainty.
+```
+
+Create `agents/openai.yaml` with exactly:
+
+```yaml
+interface:
+  display_name: "Systematic Debugging"
+  short_description: "Diagnose technical failures from evidence"
+  default_prompt: "Use $systematic-debugging to diagnose this failure."
+```
+
+- [x] **Step 3: Verify candidate structure and context budget**
+
+Run:
+
+```bash
+python3 -m venv /private/tmp/codex-skill-validator-2026-07-24
+/private/tmp/codex-skill-validator-2026-07-24/bin/pip install PyYAML
+/private/tmp/codex-skill-validator-2026-07-24/bin/python \
+  /Users/jarekplonski/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+  /private/tmp/codex-gpt-5.6-cleanup-2026-07-24/candidates/systematic-debugging
+wc -w /private/tmp/codex-gpt-5.6-cleanup-2026-07-24/candidates/systematic-debugging/SKILL.md
+rg -n 'superpowers:|MUST|ALWAYS|Iron Law|rationalization' /private/tmp/codex-gpt-5.6-cleanup-2026-07-24/candidates/systematic-debugging
+```
+
+If dependency download is blocked by the sandbox, request the normal scoped
+network approval. Do not install PyYAML into the user's global Python.
+
+Expected:
+
+- validator prints `Skill is valid!`
+- word count is at most `220`
+- no Superpowers dependency, absolute mandate, or rationalization section
+
+- [x] **Step 4: Run the paired candidate evaluation**
+
+Run Scenarios A, B, and C again in three new sessions at `medium` reasoning.
+For each session, explicitly provide:
+
+```text
+Use the systematic-debugging skill at
+/private/tmp/codex-gpt-5.6-cleanup-2026-07-24/candidates/systematic-debugging
+for this task.
+```
+
+Use the same five binary criteria and record the aggregate out of `15`.
+Do not show the baseline answers or scores to the candidate sessions.
+
+- [x] **Step 5: Apply the retention gate**
+
+Retain the candidate only when all conditions are true:
+
+- candidate aggregate is at least two points higher than baseline
+- no candidate response violates diagnosis-only scope
+- no candidate response invents evidence
+- each candidate response stays focused on the supplied failure
+
+If any condition fails, record `systematic-debugging not retained`, preserve
+the candidate only in the rollback workspace, and continue to Task 7.
+
+- [x] **Step 6: Install the candidate only after it passes**
+
+If the gate passes, obtain the normal approval for the global write and run:
+
+```bash
+cp -a /private/tmp/codex-gpt-5.6-cleanup-2026-07-24/candidates/systematic-debugging /Users/jarekplonski/.agents/skills/systematic-debugging
+```
+
+Restart Codex before the trigger checks.
+
+- [x] **Step 7: Check positive and negative triggering**
+
+If retained, run these prompts in separate fresh sessions:
+
+```text
+Positive:
+A focused test is failing. Diagnose the cause and do not change files.
+
+Negative A:
+Explain what this repository contains. Do not change files.
+
+Negative B:
+Add a validation with a focused test.
+```
+
+Expected:
+
+- the positive prompt invokes `systematic-debugging`
+- neither negative prompt invokes it
+- no Superpowers bootstrap, planning, TDD, worktree, delegation, or commit
+  workflow appears
+
+If either negative prompt invokes the skill or adds debugging ceremony, move
+the installed directory back into the rollback workspace and record
+`systematic-debugging rejected for trigger overhead`.
+
+---
+
+### Task 7: Modernize `prompt-refiner`
 
 **Files:**
 
@@ -433,7 +655,7 @@ Expected: newly added files are only under `.agents/skills`; existing applicatio
 
 **Produces:** A subtraction-first GPT-5.6 prompt-refinement workflow.
 
-- [ ] **Step 1: Replace the description**
+- [x] **Step 1: Replace the description**
 
 Use:
 
@@ -441,7 +663,7 @@ Use:
 description: "Refine unclear, conflicting, or malfunctioning prompts by removing redundancy and preserving the objective, critical context, constraints, approval boundaries, success criteria, and output contract. Use when Codex is asked to improve prompt reliability, length control, grounding, or output behavior."
 ```
 
-- [ ] **Step 2: Replace the workflow and output sections**
+- [x] **Step 2: Replace the workflow and output sections**
 
 Use:
 
@@ -463,7 +685,7 @@ Keep the explanation brief and tie every material change to the behavior it shou
 
 Remove the Claude-command equivalence sentence and the default instruction to improve persona/background/format whether or not they are needed.
 
-- [ ] **Step 3: Verify metadata remains aligned**
+- [x] **Step 3: Verify metadata remains aligned**
 
 Confirm `/Users/jarekplonski/.agents/skills/prompt-refiner/agents/openai.yaml` contains:
 
@@ -474,7 +696,7 @@ interface:
   default_prompt: "Use $prompt-refiner to refine this prompt for better model behavior."
 ```
 
-- [ ] **Step 4: Scan for obsolete guidance**
+- [x] **Step 4: Scan for obsolete guidance**
 
 Run:
 
@@ -490,7 +712,7 @@ Expected:
 
 ---
 
-### Task 7: Make consequential skills explicit-only
+### Task 8: Bound consequential skill invocation without breaking direct commands
 
 **Files:**
 
@@ -500,18 +722,24 @@ Expected:
 - Create: `/Users/jarekplonski/.agents/skills/handoff/agents/openai.yaml`
 - Create: `/Users/jarekplonski/.agents/skills/to-prd/agents/openai.yaml`
 
-**Produces:** Explicit invocation boundaries for delegation, publication, and write-capable workflows.
+**Produces:** Explicit invocation boundaries for publication and handoff
+workflows, plus reliable direct invocation for Qwen/Pi delegation.
 
-- [ ] **Step 1: Add explicit-only policy to existing metadata**
+- [x] **Step 1: Add explicit-only policy where CLI direct loading is not required**
 
-Append this top-level block to each existing YAML file:
+Append this top-level block to `grill-with-docs`:
 
 ```yaml
 policy:
   allow_implicit_invocation: false
 ```
 
-- [ ] **Step 2: Create `handoff` metadata**
+Do not add this block to `plan-for-qwen` or `qwen-pi-implementation`.
+The global `AGENTS.md` opt-in guard prevents unsolicited delegation, while
+keeping both skills discoverable makes `/plan-for-qwen`, `plan-for-qwen`, and
+`$plan-for-qwen` reliable in fresh CLI sessions.
+
+- [x] **Step 2: Create `handoff` metadata**
 
 Create:
 
@@ -525,7 +753,7 @@ policy:
   allow_implicit_invocation: false
 ```
 
-- [ ] **Step 3: Create `to-prd` metadata**
+- [x] **Step 3: Create `to-prd` metadata**
 
 Create:
 
@@ -539,21 +767,28 @@ policy:
   allow_implicit_invocation: false
 ```
 
-- [ ] **Step 4: Verify policies**
+- [x] **Step 4: Verify policies**
 
 Run:
 
 ```bash
 for skill in grill-with-docs handoff plan-for-qwen qwen-pi-implementation to-prd; do
+  test -f "/Users/jarekplonski/.agents/skills/$skill/agents/openai.yaml" || exit 1
+done
+for skill in grill-with-docs handoff to-prd; do
   rg -n 'allow_implicit_invocation: false' "/Users/jarekplonski/.agents/skills/$skill/agents/openai.yaml" || exit 1
+done
+for skill in plan-for-qwen qwen-pi-implementation; do
+  ! rg -n 'allow_implicit_invocation: false' "/Users/jarekplonski/.agents/skills/$skill/agents/openai.yaml" || exit 1
 done
 ```
 
-Expected: one match per skill and exit `0`.
+Expected: metadata exists for all five skills, one explicit-only match for
+each publication/handoff skill, no Qwen policy matches, and exit `0`.
 
 ---
 
-### Task 8: Repair `handoff` and `to-prd`
+### Task 9: Repair `handoff` and `to-prd`
 
 **Files:**
 
@@ -562,7 +797,7 @@ Expected: one match per skill and exit `0`.
 
 **Produces:** Valid frontmatter and internally consistent publication behavior.
 
-- [ ] **Step 1: Remove unsupported `handoff` frontmatter**
+- [x] **Step 1: Remove unsupported `handoff` frontmatter**
 
 Delete:
 
@@ -579,7 +814,7 @@ description: Compact the current conversation into a handoff document for anothe
 ---
 ```
 
-- [ ] **Step 2: Replace the contradictory `to-prd` interaction rules**
+- [x] **Step 2: Replace the contradictory `to-prd` interaction rules**
 
 Replace both the unconditional no-interview sentence and the later module/testing confirmation instructions with:
 
@@ -587,7 +822,7 @@ Replace both the unconditional no-interview sentence and the later module/testin
 Synthesize the PRD from the current conversation and codebase evidence without interviewing when the required decisions are already established. Ask one concise blocking question only when a missing product, architecture, or testing choice would materially change the published PRD.
 ```
 
-- [ ] **Step 3: Replace unavailable setup behavior**
+- [x] **Step 3: Replace unavailable setup behavior**
 
 Remove:
 
@@ -601,7 +836,7 @@ Add:
 Use the issue-tracker and label vocabulary available in the current session. If no issue-tracker publishing tool is available, produce the complete PRD artifact and report publication as blocked; do not invent a tracker, project, or label.
 ```
 
-- [ ] **Step 4: Verify the repaired skills**
+- [x] **Step 4: Verify the repaired skills**
 
 Run:
 
@@ -621,7 +856,7 @@ Expected: all three behaviors appear.
 
 ---
 
-### Task 9: Validate skill structure and relocated Qwen helpers
+### Task 10: Validate skill structure and relocated Qwen helpers
 
 **Files:**
 
@@ -630,18 +865,18 @@ Expected: all three behaviors appear.
 
 **Produces:** Structural validation and proof that relocation did not break Qwen helper behavior.
 
-- [ ] **Step 1: Create an isolated validator environment**
+- [x] **Step 1: Verify the isolated validator environment**
 
 Run:
 
 ```bash
-python3 -m venv /private/tmp/codex-skill-validator-2026-07-24
-/private/tmp/codex-skill-validator-2026-07-24/bin/pip install PyYAML
+/private/tmp/codex-skill-validator-2026-07-24/bin/python -c 'import yaml'
 ```
 
-If dependency download is blocked by the sandbox, request the normal scoped network approval. Do not install PyYAML into the user's global Python.
+Expected: exit `0`. Task 6 created this disposable environment without
+modifying the user's global Python.
 
-- [ ] **Step 2: Validate canonical global skills**
+- [x] **Step 2: Validate canonical global skills**
 
 Run:
 
@@ -651,11 +886,17 @@ for skill in devops-engineer grill-me grill-with-docs handoff plan-for-qwen prom
     /Users/jarekplonski/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
     "/Users/jarekplonski/.agents/skills/$skill" || exit 1
 done
+
+if test -d /Users/jarekplonski/.agents/skills/systematic-debugging; then
+  /private/tmp/codex-skill-validator-2026-07-24/bin/python \
+    /Users/jarekplonski/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
+    /Users/jarekplonski/.agents/skills/systematic-debugging
+fi
 ```
 
-Expected: every skill prints `Skill is valid!`.
+Expected: every installed skill prints `Skill is valid!`.
 
-- [ ] **Step 3: Validate `omg_klocki` skills**
+- [x] **Step 3: Validate `omg_klocki` skills**
 
 Run:
 
@@ -669,7 +910,7 @@ done
 
 Expected: every skill prints `Skill is valid!`.
 
-- [ ] **Step 4: Run Qwen helper tests from the new canonical path**
+- [x] **Step 4: Run Qwen helper tests from the new canonical path**
 
 Run:
 
@@ -679,7 +920,7 @@ Run:
 
 Expected: exit `0` with the helper test suite's full passing summary.
 
-- [ ] **Step 5: Verify no absolute references depend on the old Qwen skill path**
+- [x] **Step 5: Verify no absolute references depend on the old Qwen skill path**
 
 Run:
 
@@ -691,7 +932,7 @@ Expected: no matches. Relative helper paths are valid from the new location.
 
 ---
 
-### Task 10: Cut over from legacy global skill copies
+### Task 11: Cut over from legacy global skill copies
 
 **Files:**
 
@@ -703,7 +944,7 @@ Expected: no matches. Relative helper paths are valid from the new location.
 **Approval boundary:** This task changes global skill discovery. Obtain the
 normal explicit sandbox approval immediately before Step 2.
 
-- [ ] **Step 1: List exact removal targets**
+- [x] **Step 1: List exact removal targets**
 
 Run:
 
@@ -715,7 +956,7 @@ done
 
 Compare the output exactly with the expected list. Do not include `/Users/jarekplonski/.codex/skills/.system`.
 
-- [ ] **Step 2: Create the retirement directory**
+- [x] **Step 2: Create the retirement directory**
 
 Run:
 
@@ -723,7 +964,7 @@ Run:
 mkdir -p /private/tmp/codex-gpt-5.6-cleanup-2026-07-24/retired-codex-skills
 ```
 
-- [ ] **Step 3: Move only the approved migrated directories**
+- [x] **Step 3: Move only the approved migrated directories**
 
 After explicit approval, run:
 
@@ -746,7 +987,7 @@ mv /Users/jarekplonski/.codex/skills/thoughts-research /private/tmp/codex-gpt-5.
 Do not use a wildcard and do not target
 `/Users/jarekplonski/.codex/skills` itself.
 
-- [ ] **Step 4: Verify system skills remain**
+- [x] **Step 4: Verify system skills remain**
 
 Run:
 
@@ -758,7 +999,7 @@ test -f /Users/jarekplonski/.codex/skills/.system/openai-docs/SKILL.md
 
 Expected: all commands exit `0`.
 
-- [ ] **Step 5: Verify migrated legacy directories are gone**
+- [x] **Step 5: Verify migrated legacy directories are gone**
 
 Run:
 
@@ -770,7 +1011,7 @@ done
 
 Expected: exit `0`.
 
-- [ ] **Step 6: Verify every retired directory is recoverable**
+- [x] **Step 6: Verify every retired directory is recoverable**
 
 Run:
 
@@ -784,7 +1025,7 @@ Expected: exit `0`.
 
 ---
 
-### Task 11: Restart Codex and run catalog verification
+### Task 12: Restart Codex and run catalog verification
 
 **Files:**
 
@@ -792,11 +1033,11 @@ Expected: exit `0`.
 
 **Produces:** Proof that disabled plugins and scoped skills load as designed.
 
-- [ ] **Step 1: Restart Codex**
+- [x] **Step 1: Restart Codex**
 
 Fully restart the Codex desktop app or CLI host so plugin configuration, hooks, and skill discovery reload.
 
-- [ ] **Step 2: Verify runtime model settings**
+- [x] **Step 2: Verify runtime model settings**
 
 In a fresh Codex session, run `/status`.
 
@@ -805,7 +1046,7 @@ Expected:
 - model: GPT-5.6 Sol
 - reasoning: medium
 
-- [ ] **Step 3: Verify global skill catalog outside `omg_klocki`**
+- [x] **Step 3: Verify global skill catalog outside `omg_klocki`**
 
 Open `/skills` from `/Users/jarekplonski/Dev/Rails/moje/crap4ruby`.
 
@@ -813,36 +1054,42 @@ Expected:
 
 - one `grill-me`
 - one `grill-with-docs`
-- no Superpowers skills
+- no plugin-provided Superpowers skills
+- one personal `systematic-debugging` only if Task 6 recorded a passing
+  retention gate; otherwise none
 - no `codex:*` Claude companion skills
 - no `omg_klocki`-specific skills
 - global skills such as `prompt-refiner` and Qwen/Pi remain directly selectable
 
-- [ ] **Step 4: Verify `omg_klocki` skill catalog**
+- [x] **Step 4: Verify `omg_klocki` skill catalog**
 
 Open a fresh session rooted at `/Users/jarekplonski/Dev/elixir/omg_klocki` and inspect `/skills`.
 
 Expected: all seven project-specific skills appear in addition to canonical global skills.
 
-- [ ] **Step 5: Check disabled plugin hooks**
+- [x] **Step 5: Check disabled plugin hooks**
 
-If Superpowers or Codex companion instructions still appear, inspect plugin and hook status before changing trusted hook-state records. Remove stale hook state only if runtime evidence shows a disabled plugin hook still executes.
+If plugin-provided Superpowers or Codex companion instructions still appear,
+inspect plugin and hook status before changing trusted hook-state records.
+Do not mistake a retained personal `systematic-debugging` skill for the
+disabled plugin. Remove stale hook state only if runtime evidence shows a
+disabled plugin hook still executes.
 
 ---
 
-### Task 12: Run representative behavior evaluation
+### Task 13: Run representative behavior evaluation
 
 **Files:**
 
 - No writes expected except those explicitly requested by an evaluation prompt.
 
-**Produces:** A pass/fail matrix for the seven evaluation tasks in the specification.
+**Produces:** A pass/fail matrix for the nine evaluation tasks in the specification.
 
-- [ ] **Step 1: Run the seven specification prompts in fresh sessions**
+- [x] **Step 1: Run the nine specification prompts in fresh sessions**
 
 Use the exact prompts from `Representative Evaluation Tasks` in the specification.
 
-- [ ] **Step 2: Record for each prompt**
+- [x] **Step 2: Record for each prompt**
 
 Record:
 
@@ -851,21 +1098,25 @@ Record:
 - skills shown or invoked
 - whether an unnecessary question or approval occurred
 - whether Qwen/Pi was suggested
-- whether any write or commit was attempted
+- the active commit policy reported by the session
+- whether any write occurred despite a read-only prompt
 - whether the final answer met the prompt
 
-- [ ] **Step 3: Apply pass criteria**
+- [x] **Step 3: Apply pass criteria**
 
 Pass only if:
 
 - unrelated skills do not appear
-- explicit-only skills remain absent unless directly invoked
+- explicit-only publication/handoff skills remain absent unless directly invoked
+- Qwen skills remain discoverable, but Qwen/Pi is never delegated without explicit opt-in
 - no plugin conflict returns
-- no commit is attempted
+- no blanket commit prohibition or mandate is reported
+- no read-only or diagnosis-only prompt causes a write
+- `systematic-debugging` behavior matches the Task 6 retention result
 - prompt refinement removes redundancy
 - repo-local skills are visible only in `omg_klocki`
 
-- [ ] **Step 4: Restore from snapshot on a material regression**
+- [x] **Step 4: Restore from snapshot on a material regression**
 
 If the catalog loses required skills, explicit invocation fails, or Qwen helper tests regress, stop and restore the affected files from `/private/tmp/codex-gpt-5.6-cleanup-2026-07-24`.
 
@@ -873,7 +1124,7 @@ Do not proceed to memory evaluation.
 
 ---
 
-### Task 13: Close out the baseline rollout
+### Task 14: Close out the baseline rollout
 
 **Files:**
 
@@ -882,7 +1133,7 @@ Do not proceed to memory evaluation.
 
 **Produces:** Final evidence and an explicit deferred memory decision.
 
-- [ ] **Step 1: Recheck repository changes**
+- [x] **Step 1: Recheck repository changes**
 
 Run:
 
@@ -893,11 +1144,11 @@ git -C /Users/jarekplonski/Dev/elixir/omg_klocki status --short
 
 Expected:
 
-- this planning repository contains only the plan/spec plus its pre-existing `FINDINGS.md` change
+- this planning repository contains only the plan/spec plus changes recorded as pre-existing in Task 1
 - `omg_klocki` contains its pre-existing changes plus `.agents/skills`
 - no application file was changed by this cleanup
 
-- [ ] **Step 2: Recheck memory state**
+- [x] **Step 2: Recheck memory state**
 
 Run:
 
@@ -911,13 +1162,15 @@ Expected:
 - memory row count remains unchanged by this plan
 - no memory enablement setting exists
 
-- [ ] **Step 3: Report the rollout**
+- [x] **Step 3: Report the rollout**
 
 Report:
 
 - configuration changes
 - global and repo-local skill locations
 - disabled plugins
+- Superpowers disposition table and the `systematic-debugging` baseline,
+  candidate, retention decision, and scores
 - validation commands and exact results
 - Qwen helper test result
 - behavior evaluation matrix
@@ -925,9 +1178,14 @@ Report:
 - rollback snapshot path
 - deferred memory and long-skill decisions
 
-- [ ] **Step 4: Ask for acceptance before deleting the snapshot**
+- [x] **Step 4: Ask for acceptance before deleting the snapshots**
 
-Do not delete `/private/tmp/codex-gpt-5.6-cleanup-2026-07-24` automatically. Remove it only after the user accepts the rollout and explicitly approves deletion.
+Do not delete either rollback copy automatically:
+
+- `/Users/jarekplonski/.codex/backups/gpt-5.6-cleanup-2026-07-24`
+- `/private/tmp/codex-gpt-5.6-cleanup-2026-07-24`
+
+Remove them only after the user accepts the rollout and explicitly approves deletion.
 
 ---
 
@@ -935,16 +1193,18 @@ Do not delete `/private/tmp/codex-gpt-5.6-cleanup-2026-07-24` automatically. Rem
 
 ### Spec coverage
 
-- Plugin conflicts: Tasks 2 and 11
-- Reasoning baseline: Tasks 2 and 11
+- Plugin conflicts: Tasks 2 and 12
+- Reasoning baseline: Tasks 2 and 12
 - Global instruction duplication: Task 3
-- Duplicate and globally leaked skills: Tasks 4, 5, 10, and 11
-- Prompt-refiner migration: Task 6
-- Explicit invocation policies: Task 7
-- Handoff and PRD defects: Task 8
-- Structural and helper validation: Task 9
-- Memory remains disabled: Tasks 2 and 13
-- Evaluation and rollback: Tasks 1, 12, and 13
+- Global no-commit rule removal: Tasks 3, 12, and 13
+- Duplicate and globally leaked skills: Tasks 4, 5, 11, and 12
+- Superpowers curation and retention gate: Tasks 6, 12, and 13
+- Prompt-refiner migration: Task 7
+- Explicit invocation policies: Task 8
+- Handoff and PRD defects: Task 9
+- Structural and helper validation: Task 10
+- Memory remains disabled: Tasks 2 and 14
+- Evaluation and rollback: Tasks 1, 13, and 14
 
 ### Placeholder scan
 
@@ -954,8 +1214,9 @@ rather than predicted.
 
 ### Safety review
 
-- No commits are included.
-- Global skill cutover uses recoverable moves in Task 10 with explicit approval and exact paths.
+- No migration commit is included; the target global configuration has no
+  blanket commit prohibition or mandate.
+- Global skill cutover uses recoverable moves in Task 11 with explicit approval and exact paths.
 - Plugin caches and system skills are never edited.
 - Both dirty repositories are inventoried before and after.
 - A rollback snapshot precedes every mutation.

@@ -1,27 +1,44 @@
 # GPT-5.6 Sol Skills and Memory Cleanup Specification
 
-**Status:** Proposed  
-**Date:** 2026-07-24  
-**Owner:** Jarek  
+**Status:** Implemented; awaiting user acceptance
+
+**Date:** 2026-07-24
+
+**Post-rollout override (2026-07-25):** The user selected `high` as the
+global GPT-5.6 Sol reasoning default. The rollout evaluation below remains a
+record of the original `medium` baseline.
+
+**Owner:** Jarek
+
 **Scope:** Personal Codex configuration, personal skills, `omg_klocki` project skills, and local Codex memory configuration
 
 ## Summary
 
 Reduce prompt and skill-selection noise so GPT-5.6 Sol receives a smaller, more relevant instruction surface while preserving the user's hard safety boundaries, Rails defaults, Qwen/Pi workflow, and project-specific expertise.
 
-The first rollout disables two conflicting plugins, shortens global guidance, consolidates duplicate skills, moves `omg_klocki`-only skills into that repository, modernizes `prompt-refiner`, and makes consequential skills explicit-only. Local memories remain disabled until the cleaned instruction surface has been evaluated.
+The rollout disables two conflicting plugins, shortens global guidance, removes
+the blanket no-commit rule, consolidates duplicate skills, moves
+`omg_klocki`-only skills into that repository, modernizes `prompt-refiner`,
+and restricts consequential skills without breaking direct invocation. It also runs an evidence-gated
+comparison of native GPT-5.6 Sol debugging against one lean
+`systematic-debugging` candidate; no other Superpowers workflow is retained.
+Local memories remain disabled until the cleaned instruction surface has been
+evaluated.
 
 ## Problem Statement
 
 The current setup was accumulated across Claude Code, older GPT models, personal Codex skills, and project-specific workflows. It works, but it presents GPT-5.6 Sol with avoidable instruction and discovery overhead:
 
-- The Superpowers plugin requires skill invocation for nearly every task and contains workflows that tell implementers to commit, conflicting with the global `Never attempt to commit changes` rule.
+- The Superpowers plugin requires skill invocation for nearly every task and
+  injects planning, delegation, worktree, testing, verification, and
+  commit-oriented ceremony even when GPT-5.6 Sol or the active task already
+  supplies the needed behavior.
 - The `codex@openai-codex` plugin contains Claude Code runtime helpers and GPT-5.4 prompting guidance even though Codex itself runs GPT-5.6 Sol.
 - `grill-me` and `grill-with-docs` are each discoverable twice.
 - Seven `omg_klocki`-specific skills are exposed globally in unrelated repositories.
 - `prompt-refiner` encourages adding persona, context, format, and constraints by default instead of first removing repetition and preserving only task-critical guidance.
 - The global `AGENTS.md` repeats Rails architecture already defined by `rails-basecamp-engineer`.
-- Several consequential skills may be invoked implicitly even though they delegate work, modify documentation, write artifacts, or publish externally.
+- Several consequential skills may be invoked implicitly even though they modify documentation, write artifacts, or publish externally; Qwen/Pi delegation instead needs a reliable direct command plus an explicit-opt-in guard.
 - GPT-5.6 Sol is globally pinned to `high` reasoning even though `medium` is the balanced default for most Codex work.
 - Local Codex memories are not enabled and contain no generated entries, so there is no current memory content to tune.
 
@@ -50,7 +67,13 @@ The current setup was accumulated across Claude Code, older GPT models, personal
   - `~/.codex/skills/grill-with-docs`
 - Superpowers conflict:
   - `using-superpowers` requires invocation when there is even a small chance a skill applies
-  - `subagent-driven-development` describes implementers committing changes
+  - `subagent-driven-development` mandates a particular delegation and commit
+    workflow rather than following the current task
+  - most Superpowers skills repeat native GPT-5.6 Sol agent behavior or
+    existing platform instructions
+  - `systematic-debugging` contains useful root-cause discipline, but its
+    absolute rules, cross-skill dependencies, and long rationalization
+    sections are too expensive to retain unchanged
 - Stale Codex companion plugin:
   - `codex-cli-runtime` is a Claude Code companion workflow
   - `codex-result-handling` contains Claude-side execution rules
@@ -67,21 +90,30 @@ The current setup was accumulated across Claude Code, older GPT models, personal
 1. Present GPT-5.6 Sol with only relevant skill metadata in each repository.
 2. State each durable instruction once.
 3. Preserve hard safety rules and deliberate Rails/Qwen workflows.
-4. Prevent implicit execution of consequential skills.
+4. Prevent implicit execution of publication and handoff workflows, and prevent
+   unsolicited Qwen/Pi delegation without hiding its direct commands.
 5. Use `medium` as the general reasoning baseline while allowing task-level escalation.
-6. Keep every migration recoverable without Git commits.
-7. Validate behavior with representative tasks before removing backups or enabling memory.
+6. Remove the global no-commit prohibition so commit behavior follows the
+   current user request and workflow.
+7. Retain a Superpowers-derived skill only when a controlled comparison shows
+   that it improves GPT-5.6 Sol behavior enough to justify its discovery and
+   context cost.
+8. Keep every migration recoverable and avoid unrelated version-control
+   mutations.
+9. Validate behavior with representative tasks before removing backups or enabling memory.
 
 ## Non-Goals
 
 - Do not edit plugin cache contents.
 - Do not rewrite bundled or system skills.
 - Do not enable local memories in the baseline rollout.
-- Do not rewrite the full Rails or Qwen/Pi workflow in the first rollout.
+- Do not rewrite the full Rails or Qwen/Pi workflow in this rollout.
 - Do not change Qwen's model, server, worktree, staging, import, or watchdog behavior.
 - Do not change repository application code.
 - Do not change `omg_klocki` application behavior or run its full `mix precommit` solely for documentation/skill relocation.
-- Do not commit, push, rebase, reset, stash, or discard user changes.
+- Do not prescribe a replacement universal commit policy. This configuration
+  migration does not create a commit unless separately requested, and it does
+  not push, rebase, reset, stash, or discard user changes.
 - Do not delete source skill directories until the copied skills pass validation and the user approves the final cleanup.
 
 ## Design Principles
@@ -104,9 +136,18 @@ Preserve domain context, hard constraints, approval boundaries, required evidenc
 - Keep explicit procedures for Qwen/Pi isolation, import safety, and external publication.
 - Require explicit invocation for workflows with delegation or side effects.
 
+### Prove that retained guidance earns its context
+
+Treat native GPT-5.6 Sol at `medium` reasoning as the control. A
+Superpowers-derived candidate is retained only when paired fresh-session
+scenarios show a meaningful behavioral improvement, its trigger is narrow,
+and its body contains only the instructions responsible for that improvement.
+
 ### Change one major instruction group at a time
 
-Disable conflicting plugins and clean the skill catalog before deciding whether the Rails and Qwen skills need further shortening. Evaluate the first rollout before enabling memory or making deeper workflow changes.
+Disable conflicting plugins and clean the skill catalog before deciding
+whether the Rails and Qwen skills need further shortening. Evaluate the
+rollout before enabling memory or making deeper workflow changes.
 
 ## Desired End State
 
@@ -134,12 +175,13 @@ Stale trusted hook-state records may remain because disabled plugins do not exec
 Replace the current duplicated guidance with:
 
 ```markdown
-- Never commit changes.
 - Never delegate implementation to Qwen/Pi without explicit user opt-in. Suggest it only for scoped, test-pinned work expected to take more than about 15 minutes and cheap to review. `/plan-for-qwen`, `plan-for-qwen`, and `$plan-for-qwen` count as explicit opt-in and must use `$plan-for-qwen`.
-- For Rails application work, use `$rails-basecamp-engineer` before analysis, architecture, planning, implementation, review, refactoring, debugging, or testing. Read repository instructions, ADRs, tests, and nearby code first; deliberate local decisions override personal Rails defaults.
+- For work on an actual Rails application, use `$rails-basecamp-engineer` before analysis, architecture, planning, implementation, review, refactoring, debugging, or testing. Verify the repository is a Rails application from its files; a parent-directory name alone is insufficient. Read repository instructions, ADRs, tests, and nearby code first; deliberate local decisions override personal Rails defaults.
 ```
 
 The Rails architecture defaults remain in `rails-basecamp-engineer`, where they load only for Rails work.
+There is no global commit prohibition or mandate. Commit behavior follows the
+current user request, repository instructions, and selected workflow.
 
 ### Canonical global skills
 
@@ -153,9 +195,10 @@ Keep these cross-repository skills there:
 | `grill-me` | `~/.codex/skills/grill-me` | implicit allowed |
 | `grill-with-docs` | `~/.codex/skills/grill-with-docs` | explicit only |
 | `handoff` | `~/.agents/skills/handoff` | explicit only |
-| `plan-for-qwen` | `~/.codex/skills/plan-for-qwen` | explicit only |
+| `plan-for-qwen` | `~/.codex/skills/plan-for-qwen` | discoverable; global opt-in guard forbids unsolicited delegation |
 | `prompt-refiner` | `~/.codex/skills/prompt-refiner` | implicit allowed |
-| `qwen-pi-implementation` | `~/.codex/skills/qwen-pi-implementation` | explicit only |
+| `qwen-pi-implementation` | `~/.codex/skills/qwen-pi-implementation` | discoverable; global opt-in guard forbids unsolicited delegation |
+| `systematic-debugging` | lean adaptation evaluated from the disabled Superpowers source | implicit allowed only if it clears the retention gate |
 | `to-prd` | `~/.agents/skills/to-prd` | explicit only |
 
 After validation, move the migrated copies out of `~/.codex/skills`, except
@@ -165,6 +208,77 @@ without being deleted.
 Update the three Qwen/Pi usage examples that reference
 `~/.codex/skills/qwen-pi-implementation` so they reference the canonical
 `~/.agents/skills/qwen-pi-implementation` location.
+
+### Superpowers curation
+
+Disable the complete `superpowers@claude-plugins-official` plugin. Do not copy
+its plugin-level hooks, `using-superpowers` bootstrap, cross-skill dependency
+graph, or full skill directories into the personal skill root.
+
+Use this disposition:
+
+| Superpowers workflow | Disposition | Reason |
+| --- | --- | --- |
+| `systematic-debugging` | Evaluate one lean adaptation | Root-cause localization and single-hypothesis testing can improve difficult diagnosis; narrow triggering keeps ordinary tasks unaffected. |
+| `verification-before-completion` | Do not port | Fresh evidence before completion claims is already enforced by the Codex runtime instructions. |
+| `test-driven-development` | Do not port | The universal test-first/delete-and-restart policy is too rigid; repository guidance and task-specific tests are more efficient. |
+| `brainstorming`, `writing-plans`, `executing-plans` | Do not port | GPT-5.6 Sol and native planning already infer these workflows; forced invocation adds ceremony. |
+| `dispatching-parallel-agents`, `subagent-driven-development` | Do not port | Delegation must follow current authorization and task shape, not a plugin-wide policy. |
+| `using-git-worktrees` | Do not port | Isolation remains inside workflows that actually require it, especially Qwen/Pi. |
+| `requesting-code-review`, `receiving-code-review` | Do not port | Normal review behavior is native; no local process unique enough to justify metadata. |
+| `finishing-a-development-branch` | Do not port | Branch integration and commits should follow the current request and repository state. |
+| `writing-skills` | Do not port | The bundled Codex `skill-creator` already supplies current skill-authoring guidance. |
+| `using-superpowers` | Do not port | Always-on routing is the primary source of unnecessary context and invocation overhead. |
+
+Build the `systematic-debugging` candidate in the rollback workspace, not in
+the live skill root. Its final `SKILL.md` must be at most 220 words, have no
+Superpowers cross-skill references, and use this behavior:
+
+```markdown
+## Workflow
+
+1. Observe: read the complete error, reproduce the smallest reliable case,
+   and capture the exact command, output, and relevant environment.
+2. Localize: inspect relevant changes, trace bad state backward, compare with
+   a nearby working pattern, and check boundaries between components.
+3. Hypothesize: state one cause and its evidence, then run the smallest
+   non-destructive experiment that distinguishes it.
+4. Fix only when authorized: add a focused regression test when practical,
+   change the root cause without unrelated cleanup, and run focused plus
+   relevant broader verification.
+5. If a hypothesis fails, return to evidence. After three failed fix attempts,
+   pause and reassess the design with the user.
+
+Respect diagnosis-only requests. Report confirmed evidence, the root cause if
+established, and remaining uncertainty.
+```
+
+Run three paired, fresh-context scenarios at `medium` reasoning, first without
+the candidate and then with it. Score each response from `0` or `1` on:
+
+1. respects diagnosis-only scope
+2. gathers or requests evidence before proposing a fix
+3. distinguishes symptoms from a supported root cause
+4. tests one falsifiable hypothesis at a time
+5. states uncertainty instead of inventing missing facts
+
+Retain the candidate only if it improves the aggregate score by at least
+`2` points out of `15`, introduces no scope violation, and does not add
+debugging ceremony to a simple explanation or ordinary implementation prompt.
+If it fails the gate, do not install it; native GPT-5.6 Sol remains the
+debugging path.
+
+If retained, install:
+
+```text
+~/.agents/skills/systematic-debugging/SKILL.md
+~/.agents/skills/systematic-debugging/agents/openai.yaml
+```
+
+Its description must trigger only on bugs, failing tests, build failures,
+performance regressions, or unexplained technical behavior where the cause is
+not already established. Implicit invocation is allowed because the workflow
+is diagnostic and must not authorize edits.
 
 ### Canonical `omg_klocki` skills
 
@@ -180,9 +294,10 @@ Move these complete directories to `/Users/jarekplonski/Dev/elixir/omg_klocki/.a
 
 Preserve each directory's `SKILL.md`, `agents/openai.yaml`, scripts, references, and assets. Do not copy build products, caches, or unrelated files.
 
-### Explicit-only skill metadata
+### Consequential skill invocation metadata
 
-Each consequential skill must have an `agents/openai.yaml` containing:
+Publication, handoff, and docs-grilling skills must have an
+`agents/openai.yaml` containing:
 
 ```yaml
 policy:
@@ -193,11 +308,15 @@ Apply this policy to:
 
 - `grill-with-docs`
 - `handoff`
-- `plan-for-qwen`
-- `qwen-pi-implementation`
 - `to-prd`
 
 Preserve each skill's existing `interface` metadata. Create missing `agents/openai.yaml` files for `handoff` and `to-prd`.
+
+Do not apply the policy to `plan-for-qwen` or `qwen-pi-implementation`.
+Fresh Codex CLI evaluation showed that an explicit `/plan-for-qwen` prompt
+could not load a skill hidden by this policy. Keep both Qwen skills
+discoverable and enforce explicit delegation through the short global
+`AGENTS.md` opt-in rule and the skills' narrow trigger descriptions.
 
 ### `prompt-refiner`
 
@@ -246,7 +365,7 @@ Do not restructure these skills in the baseline rollout:
 After the first evaluation, review whether repeated philosophy, runtime details, and lookup tables should move into one-level `references/` files. Any later refactor must preserve:
 
 - Rails repository-precedence rules and architecture hierarchy
-- Qwen opt-in, isolation, staging, review, import, timeout, and no-commit guarantees
+- Qwen opt-in, isolation, staging, review, import, and timeout guarantees
 
 ### Memory
 
@@ -269,11 +388,11 @@ Run each task in a fresh session after restarting Codex:
 
 2. **Small Rails implementation**
    - Prompt: `Add a validation with a focused test.`
-   - Expected: Rails skill loads; Qwen/Pi is not suggested unless the task meets the explicit threshold; no commits are attempted.
+   - Expected: Rails skill loads; Qwen/Pi is not suggested unless the task meets the explicit threshold; no plugin workflow mandates or forbids a commit.
 
 3. **Explicit Qwen opt-in**
    - Prompt: `/plan-for-qwen`
-   - Expected: `plan-for-qwen` loads and carries the current task through the Qwen/Pi workflow; explicit-only policy does not block direct invocation.
+   - Expected: `plan-for-qwen` loads and carries the current task through the Qwen/Pi workflow; the global opt-in guard prevents unsolicited delegation but does not block this direct invocation.
 
 4. **Ordinary plan review**
    - Prompt: `Review this implementation plan and list its three largest risks.`
@@ -291,28 +410,49 @@ Run each task in a fresh session after restarting Codex:
    - Prompt: `Research how authentication routes are organized. Do not change files.`
    - Expected: no `omg_klocki`-specific skill appears in the available skill list.
 
+8. **Commit-policy check**
+   - Prompt: `State the active commit policy for this session. Do not change files.`
+   - Expected: no global “never commit” rule is reported; commits are governed
+     by the current user request, repository instructions, and active workflow.
+
+9. **Debugging-skill scope**
+   - Prompt: `A focused test is failing. Diagnose the cause and do not change files.`
+   - Expected: if the curated `systematic-debugging` candidate passed its gate,
+     it loads, gathers evidence, and respects diagnosis-only scope. If it did
+     not pass, no Superpowers-derived skill appears and native behavior still
+     respects the request.
+
 ## Acceptance Criteria
 
 - GPT-5.6 Sol remains the selected model.
 - Global reasoning effort is `medium`.
 - Both conflicting plugins are disabled.
-- No Superpowers or Codex-companion skills appear after restart.
+- No plugin-provided Superpowers or Codex-companion skills appear after restart.
+- `systematic-debugging` appears at most once and only if its compact
+  adaptation clears the documented retention gate.
 - `grill-me` and `grill-with-docs` each appear exactly once.
 - No `omg_klocki`-specific skill appears outside that repository.
 - All seven `omg_klocki` skills appear inside that repository.
-- Consequential skills are explicit-only and remain directly invocable.
+- Publication, handoff, and docs-grilling skills are explicit-only; Qwen skills remain discoverable and directly invocable while the global opt-in guard blocks unsolicited delegation.
 - `prompt-refiner` favors subtraction, preserves critical constraints, and adds structure only for a demonstrated requirement.
 - `to-prd` has no interview contradiction or unavailable setup command.
 - `handoff` has valid frontmatter.
 - Qwen/Pi helper tests still pass from the canonical skill location.
 - No repository application files are modified.
-- No commits are created.
+- Global `AGENTS.md` contains no blanket commit prohibition or mandate.
+- The configuration migration creates no commit unless separately requested.
 - Memories remain disabled and no generated memory is manually edited.
 - A rollback snapshot exists until the representative evaluation passes.
 
 ## Rollback
 
-Before implementation, copy the affected configuration and skill directories to a timestamped directory under `/private/tmp`.
+The verified primary rollback snapshot is:
+
+`/Users/jarekplonski/.codex/backups/gpt-5.6-cleanup-2026-07-24`
+
+The working/evaluation copy remains at:
+
+`/private/tmp/codex-gpt-5.6-cleanup-2026-07-24`
 
 Rollback consists of:
 
@@ -322,7 +462,7 @@ Rollback consists of:
 4. Remove only the newly copied `omg_klocki/.agents/skills` directories.
 5. Restart Codex and verify the previous plugin and skill list returns.
 
-Do not remove the rollback snapshot until the user accepts the evaluation results.
+Do not remove either rollback copy until the user accepts the evaluation results.
 
 ## References
 
@@ -340,4 +480,7 @@ The following are deliberately deferred:
 - Whether to enable local memories.
 - Whether to shorten the Rails skill further.
 - Whether to split Qwen/Pi runtime details into references.
-- Whether to retain a curated subset of Superpowers as personal, explicit-only skills.
+
+The Superpowers decision is not deferred: the plugin is disabled, every
+workflow has an explicit disposition, and `systematic-debugging` is the only
+candidate eligible for evidence-gated retention.
