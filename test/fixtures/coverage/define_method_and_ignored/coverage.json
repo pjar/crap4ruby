@@ -1,0 +1,167 @@
+{
+  "$schema": "https://raw.githubusercontent.com/simplecov-ruby/simplecov/main/schemas/coverage-v1.0.schema.json",
+  "meta": {
+    "schema_version": "1.0",
+    "simplecov_version": "1.0.2",
+    "command_name": "Unit Tests",
+    "project_name": "Covcase-define method and ignored",
+    "timestamp": "2026-07-25T01:29:52.924+02:00",
+    "root": ".",
+    "commit": null,
+    "primary_coverage": "line",
+    "line_coverage": true,
+    "branch_coverage": true,
+    "method_coverage": true
+  },
+  "total": {
+    "lines": {
+      "covered": 7,
+      "missed": 1,
+      "omitted": 9,
+      "total": 8,
+      "percent": 87.5,
+      "strength": 1.25
+    },
+    "branches": {
+      "covered": 1,
+      "missed": 1,
+      "total": 2,
+      "percent": 50.0,
+      "strength": 0.0
+    },
+    "methods": {
+      "covered": 2,
+      "missed": 1,
+      "total": 3,
+      "percent": 66.66666666666667,
+      "strength": 0.0
+    }
+  },
+  "coverage": {
+    "source.rb": {
+      "source": [
+        "class DefinersCase",
+        "  define_method(:double) do |x|",
+        "    if x > 0",
+        "      x * 2",
+        "    else",
+        "      -x",
+        "    end",
+        "  end",
+        "",
+        "  %i[alpha beta].each do |n|",
+        "    define_method(n) do",
+        "      n.to_s",
+        "    end",
+        "  end",
+        "",
+        "  # simplecov:disable",
+        "  def disabled_method",
+        "    \"off the record\"",
+        "  end",
+        "  # simplecov:enable",
+        "",
+        "  # :nocov:",
+        "  def nocov_method",
+        "    \"classic marker\"",
+        "  end",
+        "  # :nocov:",
+        "end"
+      ],
+      "lines": [
+        1,
+        1,
+        1,
+        1,
+        null,
+        0,
+        null,
+        null,
+        null,
+        1,
+        2,
+        1,
+        null,
+        null,
+        null,
+        "ignored",
+        "ignored",
+        "ignored",
+        "ignored",
+        "ignored",
+        null,
+        "ignored",
+        "ignored",
+        "ignored",
+        "ignored",
+        "ignored",
+        null
+      ],
+      "lines_covered_percent": 87.5,
+      "covered_lines": 7,
+      "missed_lines": 1,
+      "omitted_lines": 9,
+      "total_lines": 8,
+      "branches": [
+        {
+          "type": "then",
+          "start_line": 4,
+          "end_line": 4,
+          "coverage": 1,
+          "inline": false,
+          "report_line": 3
+        },
+        {
+          "type": "else",
+          "start_line": 6,
+          "end_line": 6,
+          "coverage": 0,
+          "inline": false,
+          "report_line": 5
+        }
+      ],
+      "branches_covered_percent": 50.0,
+      "covered_branches": 1,
+      "missed_branches": 1,
+      "total_branches": 2,
+      "methods": [
+        {
+          "name": "DefinersCase#nocov_method",
+          "start_line": 23,
+          "end_line": 25,
+          "coverage": "ignored"
+        },
+        {
+          "name": "DefinersCase#disabled_method",
+          "start_line": 17,
+          "end_line": 19,
+          "coverage": "ignored"
+        },
+        {
+          "name": "DefinersCase#beta",
+          "start_line": 11,
+          "end_line": 13,
+          "coverage": 0
+        },
+        {
+          "name": "DefinersCase#alpha",
+          "start_line": 11,
+          "end_line": 13,
+          "coverage": 1
+        },
+        {
+          "name": "DefinersCase#double",
+          "start_line": 2,
+          "end_line": 8,
+          "coverage": 1
+        }
+      ],
+      "methods_covered_percent": 66.66666666666667,
+      "covered_methods": 2,
+      "missed_methods": 1,
+      "total_methods": 5
+    }
+  },
+  "groups": {},
+  "errors": {}
+}

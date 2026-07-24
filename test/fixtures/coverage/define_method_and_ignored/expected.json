@@ -1,0 +1,10 @@
+{
+  "rows": [
+    { "id": "DefinersCase#double", "cc": 2, "units": 5, "hits": 3, "cov": 0.6, "crap": 2.256 },
+    { "id": "DefinersCase#define_method@11", "cc": 1, "units": 1, "hits": 1, "cov": 1.0, "crap": 1.0 }
+  ],
+  "excluded": [
+    "DefinersCase#disabled_method",
+    "DefinersCase#nocov_method"
+  ]
+}

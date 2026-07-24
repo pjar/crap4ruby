@@ -1,0 +1,12 @@
+{
+  "rows": [
+    { "id": "BasicAttribution#multi", "cc": 2, "units": 5, "hits": 3, "cov": 0.6, "crap": 2.256 },
+    { "id": "BasicAttribution#admin?", "cc": 2, "units": 2, "hits": 1, "cov": 0.5, "crap": 2.5 },
+    { "id": "BasicAttribution#name", "cc": 1, "units": 0, "hits": 0, "cov": 1.0, "crap": 1.0 },
+    { "id": "BasicAttribution#untouched", "cc": 1, "units": 0, "hits": 0, "cov": 0.0, "crap": 2.0 },
+    { "id": "BasicAttribution#empty_called", "cc": 1, "units": 0, "hits": 0, "cov": 1.0, "crap": 1.0 },
+    { "id": "BasicAttribution#empty_never", "cc": 1, "units": 0, "hits": 0, "cov": 0.0, "crap": 2.0 },
+    { "id": "BasicAttribution#audit!", "cc": 1, "units": 1, "hits": 0, "cov": 0.0, "crap": 2.0 }
+  ],
+  "excluded": []
+}
