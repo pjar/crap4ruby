@@ -1,0 +1,12 @@
+{
+  "rows": [
+    { "id": "ProbeMisc#outer_with_nested", "cc": 2, "units": 3, "hits": 2, "cov": 0.666667, "crap": 2.148148 },
+    { "id": "ProbeMisc#defaults", "cc": 2, "units": 4, "hits": 3, "cov": 0.75, "crap": 2.0625 },
+    { "id": "ProbeMisc#one_b", "cc": 1, "units": 0, "hits": 0, "cov": 0.0, "crap": 2.0 },
+    { "id": "ProbeMisc.klass_method", "cc": 1, "units": 1, "hits": 1, "cov": 1.0, "crap": 1.0 },
+    { "id": "ProbeMisc.sing_dyn", "cc": 1, "units": 1, "hits": 1, "cov": 1.0, "crap": 1.0 },
+    { "id": "ProbeMisc#nested_helper", "cc": 1, "units": 1, "hits": 1, "cov": 1.0, "crap": 1.0 },
+    { "id": "ProbeMisc#one_a", "cc": 1, "units": 0, "hits": 0, "cov": 1.0, "crap": 1.0 }
+  ],
+  "excluded": []
+}

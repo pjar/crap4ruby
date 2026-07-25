@@ -26,4 +26,20 @@ class CaseForms
       :nonpos
     end
   end
+
+  # cc: 4 id: CaseForms#multi_when
+  def multi_when(x)
+    case x
+    when 1, 2, 3 then :small
+    else :big
+    end
+  end
+
+  # cc: 4 id: CaseForms#alternation
+  def alternation(x)
+    case x
+    in :a | :b then :letter
+    in Integer then :num
+    end
+  end
 end

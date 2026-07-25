@@ -19,6 +19,14 @@ class Definers
   # cc: 1 id: Definers#terse
   define_method(:terse) { :ok }
 
+  # cc: 2 id: Definers.singleton_defined
+  define_singleton_method(:singleton_defined) do |x|
+    x ? :yes : :no
+  end
+
+  # cc: 1 id: Definers#from_lambda
+  define_method(:from_lambda, -> { :static })
+
   # no-row
   attr_accessor :cache
 

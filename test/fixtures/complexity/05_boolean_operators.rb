@@ -25,4 +25,14 @@ class Booleans
     @flag ||= true
     h
   end
+
+  # cc: 5 id: Booleans#write_forms
+  def write_forms(obj)
+    x = nil
+    x ||= 1
+    @@count ||= 0
+    $flag &&= false
+    obj.attr &&= 2
+    x
+  end
 end

@@ -13,13 +13,32 @@ module Outer
     def self.registry
       @registry
     end
+
+    # cc: 2 id: Outer::Widget.install
+    def self.install(flag)
+      # cc: 1 id: Outer::Widget#define_method@20
+      define_method(flag ? :on : :off) do
+        :installed
+      end
+    end
+  end
+
+  # cc: 1 id: Widget.reset
+  def Widget.reset
+    @registry = nil
   end
 
   FACTORY = Class.new do
-    # cc: 2 id: Outer::(anon@18)#speak
+    # cc: 2 id: Outer::(anon@31)#speak
     def speak(loud)
       loud ? "HI" : "hi"
     end
+  end
+
+  helper_obj = Object.new
+  # cc: 1 id: Outer::(singleton@40).ping
+  def helper_obj.ping
+    :pong
   end
 
   # no-row
