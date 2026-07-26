@@ -13,3 +13,8 @@ devenv.local.yaml
 /.bundle/
 /coverage/
 /pkg/
+
+# CI configuration is tracked in this repo even where a machine-global
+# gitignore excludes .github (repo rules take precedence over the global
+# excludesfile).
+!.github/

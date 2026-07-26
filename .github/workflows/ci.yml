@@ -1,0 +1,30 @@
+# CI for crap4ruby. Every project command runs through devenv — a fresh
+# runner is never inside an activated shell, so the explicit devenv
+# invocation is deliberate (see AGENTS.md); do not simplify it to
+# bare-PATH ruby/bundle/rake steps.
+#
+# devenv.lock is intentionally untracked (the Owner's global gitignore
+# excludes it; whether to commit it for reproducible CI is an open Owner
+# decision, board ticket CRA-33), so devenv input resolution floats on
+# every fresh run.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@v16
+        with:
+          name: devenv
+      - name: Install devenv
+        run: nix profile add nixpkgs#devenv
+      # devenv test runs enterTest from devenv.nix: it asserts the pinned
+      # Ruby toolchain, bundle-installs, and runs bundle exec rake test.
+      - name: Run the suite through devenv
+        run: devenv test
