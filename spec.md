@@ -385,7 +385,7 @@ order — same-line definitions exist):
 
 ```
 Method                                    CC     Cov%     CRAP  Location
-Billing::Invoice#total                     6     61.9     8.41  app/models/billing/invoice.rb:41
+Billing::Invoice#total                     6     59.4     8.41  app/models/billing/invoice.rb:41
 Billing::Invoice#finalize!                 4    100.0     4.00  app/models/billing/invoice.rb:78
 ```
 
