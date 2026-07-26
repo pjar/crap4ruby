@@ -435,7 +435,10 @@ Cases: `basic_attribution` (branches, endless methods, invocation bits,
 declaration-line exclusion), `define_method_and_ignored` (literal and
 loop-dynamic `define_method`, both ignore-marker forms), `mixed_forms`
 (nested `def` ownership, singleton name collapse, same-line definitions,
-conditional parameter defaults). The harness resolves `meta.root` against
+conditional parameter defaults), `span_matching` (span-only invocation
+matching for anon-class and `class << obj` methods against real runtime
+names, the any-called rule for a loop-dynamic `define_method`, and the
+two §7.4 exclusion clauses firing separately). The harness resolves `meta.root` against
 the case directory, attributes coverage per §7, and asserts rows and
 exclusions exactly. These cases exercise §7 only; pipeline behavior (§4) is
 tested by integration tests, not fixtures.

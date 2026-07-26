@@ -1,0 +1,11 @@
+{
+  "rows": [
+    { "id": "SpanCase::(anon@2)#from_anon", "cc": 1, "units": 0, "hits": 0, "cov": 1.0, "crap": 1.0 },
+    { "id": "SpanCase::(singleton@7).from_singleton", "cc": 1, "units": 0, "hits": 0, "cov": 1.0, "crap": 1.0 },
+    { "id": "SpanCase#define_method@13", "cc": 1, "units": 0, "hits": 0, "cov": 1.0, "crap": 1.0 }
+  ],
+  "excluded": [
+    "SpanCase#zero_unit_ignored",
+    "SpanCase#ghost"
+  ]
+}
