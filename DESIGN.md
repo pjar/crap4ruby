@@ -190,3 +190,41 @@ Prism parse failure of an analyzed file → exit 3; `class << <non-self>` →
 tie-breaker; ignore-exclusion guards against vacuous `all?`; structural
 validation rejects inverted spans and colliding coverage keys. All folded
 into spec 0.3.
+
+## 8. Prism platform and upgrade policy
+
+**The pin.** `prism ~> 1.9`, declared in the gemspec, is where the spec's
+§6 node classification was validated by the conformance corpus. Prism's
+node API drifted before 1.0 (which is why CRuby 3.3's bundled 0.19 must
+never be used), while the 1.x line has been additive-only for the node
+types crap4ruby consumes, shipping minors at a roughly quarterly cadence.
+The `~>` constraint admits future 1.x minors and excludes 2.0.
+
+**Default-gem interplay — where determinism comes from.** prism is a
+default gem: Ruby 3.3 bundles 0.19, Ruby 4.0 a newer 1.x. Bundler
+activates the locked gem over the bundled default, so complexity scores
+are a function of the **locked prism gem**, never of the host Ruby. Two
+machines with the same lock produce identical scores across Ruby
+versions; that is the determinism boundary.
+
+**Minor bumps.** New Ruby grammar arrives as new Prism node types. The
+node-classification canary
+(`test/unit/prism_node_classification_test.rb`) enumerates every node
+type and fails on any type spec §6 has never classified, so a prism bump
+that could silently change counting is caught at `rake test`, not in
+production scores. Classify the new node in spec §6 first, then in the
+canary.
+
+**Grammar version.** `Prism.parse(source)` is called with no version
+option (`lib/crap4ruby/method_extractor.rb`), so analyzed files parse
+under the newest grammar the locked prism knows — crap4ruby on Ruby 3.3
+can analyze 4.x-syntax files, and a prism upgrade can change which files
+parse (exit 3 semantics). Whether the contract should pin a grammar
+version is an open Owner decision (board ticket CRA-12).
+
+**In-bundle activation caveat.** Running crap4ruby *through the analyzed
+project's bundle* (adding it to that project's Gemfile) would resolve
+prism against that project's lock, not crap4ruby's own — potentially a
+different prism, hence different scores. Install and run crap4ruby as a
+standalone gem; it only shells into the analyzed project's bundle for
+the test run itself.

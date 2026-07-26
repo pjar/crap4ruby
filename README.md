@@ -144,3 +144,6 @@ devenv shell -- bundle install
 devenv shell -- bundle exec rake test   # conformance + unit + integration
 devenv test                             # what CI runs
 ```
+
+The Prism pin, upgrade policy, and where score determinism actually comes
+from are documented in DESIGN.md §8.
