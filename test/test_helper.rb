@@ -14,6 +14,27 @@ module Crap4Ruby
     end
   end
 
+  module LocaleHelper
+    # Simulates a bare environment without a locale (minimal CI runners),
+    # where the default external encoding is US-ASCII.
+    def with_ascii_default_external
+      previous = Encoding.default_external
+      set_default_external(Encoding::US_ASCII)
+      yield
+    ensure
+      set_default_external(previous)
+    end
+
+    private
+
+    def set_default_external(encoding)
+      verbose, $VERBOSE = $VERBOSE, nil
+      Encoding.default_external = encoding
+    ensure
+      $VERBOSE = verbose
+    end
+  end
+
   module SandboxHelper
     # realpath because Dir.mktmpdir lives under a symlink on macOS and the
     # code under test compares expanded paths.

@@ -118,7 +118,9 @@ module Crap4Ruby
       files.each do |file|
         recorded = coverage.entry_for(file)["source"]
         next if recorded.nil?
-        on_disk = CoverageReport.logical_lines(File.read(file))
+        # Explicit UTF-8: without a locale (minimal CI/servers) the default
+        # external encoding is US-ASCII and multibyte sources would raise.
+        on_disk = CoverageReport.logical_lines(File.read(file, encoding: Encoding::UTF_8))
         unless recorded == on_disk
           raise Failure.new("#{project.relative(file)}: source in coverage report does not match the file on disk", 3)
         end
@@ -131,7 +133,7 @@ module Crap4Ruby
       files.each do |file|
         relative = project.relative(file)
         raise Failure.new("analyzed file absent: #{relative}", 3) unless File.file?(file)
-        methods = MethodExtractor.extract(File.read(file), relative)
+        methods = MethodExtractor.extract(File.read(file, encoding: Encoding::UTF_8), relative)
         result = begin
           Attribution.call(methods, coverage.entry_for(file))
         rescue Failure => failure

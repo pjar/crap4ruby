@@ -18,7 +18,9 @@ module Crap4Ruby
     def self.load(path, analyzed_files:)
       raise Failure.new("coverage report not found: #{path}", 3) unless File.file?(path)
       data = begin
-        JSON.parse(File.read(path))
+        # Explicit UTF-8: SimpleCov writes source arrays as raw UTF-8, which
+        # a locale-less environment would otherwise read as US-ASCII.
+        JSON.parse(File.read(path, encoding: Encoding::UTF_8))
       rescue JSON::ParserError => error
         raise Failure.new("coverage report is not valid JSON (#{error.message}): #{path}", 3)
       end
@@ -101,7 +103,9 @@ module Crap4Ruby
                 "without a `cover` pattern, or excluded by a SimpleCov filter"
       end
       raise Failure.new("analyzed file absent: #{file}", 3) unless File.file?(file)
-      line_count = self.class.logical_lines(File.read(file)).size
+      # Explicit UTF-8, matching the analyzed-file reads in CLI (no-locale
+      # environments default to US-ASCII and would raise on multibyte).
+      line_count = self.class.logical_lines(File.read(file, encoding: Encoding::UTF_8)).size
 
       lines = entry["lines"]
       invalid "#{file}: lines is not an array" unless lines.is_a?(Array)

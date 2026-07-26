@@ -2,8 +2,10 @@ require_relative "../test_helper"
 
 class CoverageReportTest < Minitest::Test
   include Crap4Ruby::SandboxHelper
+  include Crap4Ruby::LocaleHelper
 
   SOURCE = "class A\n  def x = 1\nend\n"
+  MULTIBYTE_SOURCE = "# Grüße — Kommentar\n#{SOURCE}"
 
   def test_loads_a_valid_report_and_resolves_relative_root_against_report_directory
     with_sandbox do |root|
@@ -128,6 +130,33 @@ class CoverageReportTest < Minitest::Test
     assert_equal %w[a b], Crap4Ruby::CoverageReport.logical_lines("a\nb")
     assert_equal ["a", ""], Crap4Ruby::CoverageReport.logical_lines("a\n\n")
     assert_equal [], Crap4Ruby::CoverageReport.logical_lines("")
+  end
+
+  def test_validates_a_multibyte_analyzed_file_under_an_ascii_locale
+    with_sandbox do |root|
+      file = write_file(root, "lib/a.rb", MULTIBYTE_SOURCE)
+      data = valid_report
+      entry(data)["lines"] = [nil, 1, 1, nil]
+      path = write_report(root, data)
+      with_ascii_default_external do
+        report = Crap4Ruby::CoverageReport.load(path, analyzed_files: [file])
+        assert report.entry_for(file)
+      end
+    end
+  end
+
+  def test_parses_a_report_carrying_multibyte_source_content_under_an_ascii_locale
+    with_sandbox do |root|
+      file = write_file(root, "lib/a.rb", MULTIBYTE_SOURCE)
+      data = valid_report
+      entry(data)["lines"] = [nil, 1, 1, nil]
+      entry(data)["source"] = ["# Grüße — Kommentar", "class A", "  def x = 1", "end"]
+      path = write_report(root, data)
+      with_ascii_default_external do
+        report = Crap4Ruby::CoverageReport.load(path, analyzed_files: [file])
+        assert_equal "# Grüße — Kommentar", report.entry_for(file)["source"].first
+      end
+    end
   end
 
   private

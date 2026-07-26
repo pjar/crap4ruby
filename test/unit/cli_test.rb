@@ -2,6 +2,7 @@ require_relative "../test_helper"
 
 class CLITest < Minitest::Test
   include Crap4Ruby::SandboxHelper
+  include Crap4Ruby::LocaleHelper
 
   def test_help_prints_usage_and_exits_0
     out = StringIO.new
@@ -66,6 +67,32 @@ class CLITest < Minitest::Test
       write_file(root, "lib/a.rb", "class A\nend\n")
       err = StringIO.new
       assert_equal 3, run_cli(["--no-run"], cwd: root, stderr: err)
+    end
+  end
+
+  FakeCoverage = Struct.new(:meta, :entry) do
+    def entry_for(_file) = entry
+  end
+
+  def test_no_run_source_verification_handles_multibyte_sources_under_an_ascii_locale
+    with_sandbox do |root|
+      write_file(root, "Gemfile")
+      file = write_file(root, "lib/a.rb", "# Grüße — Kommentar\nclass A\nend\n")
+      git(root, "init", "-q")
+      git(root, "add", "-A")
+      git(root, "commit", "-qm", "init")
+      project = Crap4Ruby::Project.locate(root)
+      cli = Crap4Ruby::CLI.new([], stdout: StringIO.new, stderr: StringIO.new, cwd: root)
+      matching = FakeCoverage.new({ "commit" => project.head_sha },
+                                  { "source" => ["# Grüße — Kommentar", "class A", "end"] })
+      mismatched = FakeCoverage.new({ "commit" => project.head_sha },
+                                    { "source" => ["# anders", "class A", "end"] })
+      with_ascii_default_external do
+        cli.send(:verify_trusted_artifact, project, matching, [file])
+        assert_failure(3, "does not match") do
+          cli.send(:verify_trusted_artifact, project, mismatched, [file])
+        end
+      end
     end
   end
 
