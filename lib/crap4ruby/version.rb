@@ -1,0 +1,3 @@
+module Crap4Ruby
+  VERSION = "0.1.0"
+end

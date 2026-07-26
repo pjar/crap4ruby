@@ -1,7 +1,8 @@
 # crap4ruby specification
 
-Version: 0.2 (draft, 2026-07-25; revised after external review — 21 findings
-triaged, see git history). This document plus the fixture corpus under
+Version: 0.3 (draft, 2026-07-26; revised during implementation after a second
+external design review — Codex gpt-5.6-sol, high effort — and implementation
+findings; 0.2 was 2026-07-25, 21 findings triaged, see git history). This document plus the fixture corpus under
 `test/fixtures/` is the complete, testable specification, in the style of
 crap4java's `spec.md`. Where prose and fixtures disagree, that is a bug in one
 of them — file it; neither silently wins. Background and rationale live in
@@ -53,8 +54,10 @@ CRAP(m) = comp(m)² × (1 − cov(m))³ + comp(m)
 | `crap4ruby --coverage-file <path>` | read the coverage report from `<path>` instead of `<project root>/coverage/coverage.json` |
 | `crap4ruby --help` | print usage, exit 0 |
 
-**`--changed`** parses `git status --porcelain=v1 -z` (NUL-delimited — robust
-to unusual filenames). A path is selected when either status letter is `M`,
+**`--changed`** parses `git status --porcelain=v1 -z --untracked-files=all`
+(NUL-delimited — robust to unusual filenames; `--untracked-files=all` so new
+files inside untracked directories appear individually instead of as one
+collapsed `dir/` entry). A path is selected when either status letter is `M`,
 `A`, `T`, `R`, `C`, `?`, or any unmerged state (`U` on either side, `AA`,
 `DD`); for renames/copies the **destination** path is used. Deletions are
 ignored. Only `.rb` paths are kept.
@@ -62,7 +65,10 @@ ignored. Only `.rb` paths are kept.
 **Composition:** `--changed` with explicit paths means the **intersection**
 (changed `.rb` files that lie within the explicit files/directories),
 duplicates removed. File selection never narrows the test run — coverage
-always comes from the full suite. `--test-command` with `--no-run` is a usage
+always comes from the full suite. Directory expansion (the default
+`app/`+`lib/` selection and directory arguments) uses `**/*.rb` glob
+semantics: dot-directories are not entered, matching SimpleCov's `cover`
+globs. `--test-command` with `--no-run` is a usage
 error (exit 1). Unknown options and non-existent explicit paths are usage
 errors (exit 1). An empty selection (no `.rb` in explicit paths, or an empty
 `--changed` set) prints `nothing to analyze` and exits 0 — checked **before**
@@ -75,7 +81,7 @@ any cleanup or test run (§4.1).
 | 0 | OK — no method above threshold (including "nothing to analyze") |
 | 1 | CLI usage error (also: no Gemfile, ambiguous/unavailable test runner) |
 | 2 | CRAP threshold exceeded |
-| 3 | coverage unavailable or invalid (missing/malformed report, schema mismatch, criteria disabled, stale, analyzed file absent, ambiguous same-line definitions, cleanup failure) |
+| 3 | coverage unavailable or invalid (missing/malformed report, schema mismatch, criteria disabled, stale, analyzed file absent or unparseable, ambiguous same-line definitions, cleanup failure) |
 | 4 | test command ran and failed |
 
 ## 4. Execution pipelines
@@ -134,6 +140,10 @@ Execution (always from the project root):
   `bundle exec simplecov run -- sh -c "<cmd>"` — pipelines, env assignments
   and quoting behave as in `sh`. No preflight (the user asserted the
   command); a failure is exit 4, not 1.
+- Both modes first require the analyzed project's `Gemfile.lock` to list
+  `simplecov` ≥ 1.0 — otherwise exit 1 before anything runs (the
+  `simplecov run` wrapper would fail before the tests start, which would
+  otherwise masquerade as exit 4).
 
 ### 4.4 Report validation (both modes)
 
@@ -191,7 +201,10 @@ Identity format:
   the `def` line.
 - `Scope` is the lexical constant path of the nearest enclosing `class` /
   `module` / `class << self` node, joined with `::`. Empty at top level
-  (identity is then `#name` / `.name`).
+  (identity is then `#name` / `.name`). `class << <expr>` with a non-`self`
+  expression inserts a `(singleton@<line>)` segment (line of the `class <<`
+  keyword) and singleton context — analogous to `def <receiver>.name` with
+  a non-constant receiver.
 - Blocks are transparent for identity except these, which insert a
   `(anon@<line>)` segment (line of the block opening): blocks passed to
   `Class.new`, `Module.new`, `Struct.new`, `Data.define`. A `def` inside
@@ -247,13 +260,16 @@ and a nested `def` produces its own row (§5). For a `define_method` call
 inside a method, **only the body block/lambda is excluded** — the receiver
 and argument expressions execute in the enclosing method and count normally
 (`define_method(flag ? :on : :off) do … end` adds the ternary's +1 to the
-enclosing method).
+enclosing method). The four anonymous-scope constructor blocks (§5) are
+identity boundaries but **not** counting boundaries: their non-`def`
+contents execute when the enclosing code runs and count normally.
 
 ## 7. Coverage attribution — `cov(m)`
 
 All data comes from the file's entry in `coverage.json`. A method's **span**
 is `[start_line, end_line]` of its Prism node (for `define_method` /
-`define_singleton_method`, of the block or lambda body).
+`define_singleton_method`, of the block or lambda node itself — this is the
+span SimpleCov records for such methods).
 
 ### 7.0 Ownership
 
@@ -261,10 +277,15 @@ Every line and branch arm belongs to **at most one method: the innermost
 reportable span containing it**. Lines and arms inside a nested reportable
 definition never count toward the enclosing method (mirroring §6's scope
 boundaries — otherwise tests of a nested `def` would inflate the outer
-method's coverage). If a relevant line or branch arm lies on a line shared
-by two or more **sibling** (non-nested) reportable spans, analysis fails
-with exit 3 (`ambiguous same-line definitions`); zero-unit same-line
-definitions are fine — their invocation bits are joined by name (§7.2).
+method's coverage). Nesting is decided by node containment (byte extent),
+not line numbers — `def outer; def inner; 1; end; end` is a nesting, not a
+sibling pair. If a relevant line or branch arm lies on a line shared by two
+or more **sibling** (non-nested) reportable spans, analysis fails with
+exit 3 (`ambiguous same-line definitions`). The failure triggers only when
+the shared line would actually yield a unit: an Integer-counter line that
+is not a declaration line of every sibling sharing it, or a branch arm
+reported on it. Zero-unit same-line definitions are fine — their
+invocation bits are joined by name (§7.2).
 
 ### 7.1 Coverable units
 
@@ -357,7 +378,8 @@ markers — both produce identical `"ignored"` values, verified empirically).
 ## 8. Report and gate
 
 Written to stdout, sorted by CRAP descending, ties by comp descending, then
-location (file path, then line) ascending:
+location (file path, then line) ascending, then identity ascending (a total
+order — same-line definitions exist):
 
 ```
 Method                                    CC     Cov%     CRAP  Location

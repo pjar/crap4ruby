@@ -13,6 +13,7 @@
 
   enterTest = ''
     ruby --version | grep --color=auto "4.0.5"
-    bundle --version
+    bundle check || bundle install
+    bundle exec rake test
   '';
 }

@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+
+require "crap4ruby"
+
+exit Crap4Ruby::CLI.run(ARGV)
