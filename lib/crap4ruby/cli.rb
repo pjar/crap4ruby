@@ -131,7 +131,7 @@ module Crap4Ruby
       files.each do |file|
         relative = project.relative(file)
         raise Failure.new("analyzed file absent: #{relative}", 3) unless File.file?(file)
-        methods = MethodExtractor.extract(File.read(file))
+        methods = MethodExtractor.extract(File.read(file), relative)
         result = begin
           Attribution.call(methods, coverage.entry_for(file))
         rescue Failure => failure

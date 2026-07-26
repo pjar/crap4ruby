@@ -69,6 +69,18 @@ class CLITest < Minitest::Test
     end
   end
 
+  def test_unparseable_file_failure_names_the_file
+    with_sandbox do |root|
+      write_file(root, "Gemfile")
+      bad = write_file(root, "lib/bad.rb", "def broken(\n")
+      project = Crap4Ruby::Project.locate(root)
+      cli = Crap4Ruby::CLI.new([], stdout: StringIO.new, stderr: StringIO.new, cwd: root)
+      error = assert_raises(Crap4Ruby::Failure) { cli.send(:analyze, [bad], :never_reached, project) }
+      assert_equal 3, error.exit_code
+      assert_includes error.message, "lib/bad.rb"
+    end
+  end
+
   # §8: the gate compares unrounded values. A max exceeding 8 by less than
   # half a Float ulp still fails the gate — a Float threshold cannot see it.
   def test_gate_compares_the_unrounded_rational_max_exactly
