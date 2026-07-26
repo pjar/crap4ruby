@@ -207,7 +207,9 @@ Identity format:
   a non-constant receiver.
 - Blocks are transparent for identity except these, which insert a
   `(anon@<line>)` segment (line of the block opening): blocks passed to
-  `Class.new`, `Module.new`, `Struct.new`, `Data.define`. A `def` inside
+  `Class.new`, `Module.new`, `Struct.new`, `Data.define` (bare or
+  `::`-prefixed; a qualified path such as `Foo::Struct.new` names a
+  different constant and stays transparent). A `def` inside
   any other block uses the nearest enclosing named scope unchanged.
 - Rows are unique by **(file path, identity, definition line)**. Two
   definitions of the same name produce two rows.

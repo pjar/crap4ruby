@@ -198,9 +198,19 @@ module Crap4Ruby
       def anonymous_scope(node)
         block = node.block
         return nil unless block.is_a?(Prism::BlockNode)
-        return nil unless node.receiver.is_a?(Prism::ConstantReadNode)
-        return nil unless ANONYMOUS_SCOPES[node.receiver.name] == node.name
+        name = constructor_name(node.receiver)
+        return nil unless name && ANONYMOUS_SCOPES[name] == node.name
         "(anon@#{block.location.start_line})"
+      end
+
+      # §5: `::Class.new` names the same top-level constant as `Class.new`;
+      # a qualified path (`Foo::Struct.new`) names a different constant and
+      # stays a transparent block.
+      def constructor_name(receiver)
+        case receiver
+        when Prism::ConstantReadNode then receiver.name
+        when Prism::ConstantPathNode then receiver.parent.nil? ? receiver.name : nil
+        end
       end
 
       def in_scope(entry, boundary:)

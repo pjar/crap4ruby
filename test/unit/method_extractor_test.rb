@@ -39,6 +39,32 @@ class MethodExtractorTest < Minitest::Test
     assert_equal :span_only, rows.first.match_mode
   end
 
+  def test_colon_colon_prefixed_anonymous_scope_constructor_gets_an_anon_segment
+    source = <<~RUBY
+      class C
+        THING = ::Struct.new(:a) do
+          def t = 1
+        end
+      end
+    RUBY
+    rows = Crap4Ruby::MethodExtractor.extract(source)
+    assert_equal ["C::(anon@2)#t"], rows.map(&:identity)
+    assert_equal :span_only, rows.first.match_mode
+  end
+
+  def test_qualified_constructor_path_stays_a_transparent_block
+    source = <<~RUBY
+      class C
+        THING = Foo::Struct.new(:a) do
+          def t = 1
+        end
+      end
+    RUBY
+    rows = Crap4Ruby::MethodExtractor.extract(source)
+    assert_equal ["C#t"], rows.map(&:identity)
+    assert_equal :name_and_span, rows.first.match_mode
+  end
+
   def test_same_line_nested_defs_produce_two_rows_ordered_by_byte_containment
     rows = Crap4Ruby::MethodExtractor.extract("def outer = (def inner; 1; end)\n")
     by_id = rows.to_h { |m| [m.identity, m] }

@@ -43,4 +43,20 @@ module Outer
 
   # no-row
   Widget.class_eval "def dynamic_eval; :skipped; end"
+
+  SHAPE = ::Data.define(:w) do
+    # cc: 1 id: Outer::(anon@47)#area
+    def area
+      :w
+    end
+  end
+
+  # A qualified constructor path names a different constant — the block
+  # stays transparent, so the def uses the nearest named scope.
+  Qualified::Struct.new do
+    # cc: 1 id: Outer#plain
+    def plain
+      :p
+    end
+  end
 end
