@@ -52,6 +52,52 @@ Billing::Invoice#total     6    61.9      8.41  app/models/billing/invoice.rb:41
 CRAP threshold exceeded: 8.41 > 8.0
 ```
 
+## The metric, honestly
+
+CRAP — Change Risk Anti-Patterns — was introduced by Alberto Savoia and Bob
+Evans in 2007 ([the original Artima
+post](https://www.artima.com/weblogs/viewpost.jsp?thread=215899)) with a
+threshold of **30** and an explicit allowance of roughly 5% crappy methods
+per project. crap4ruby does not inherit that calibration: it inherits the
+far stricter hard gate of
+[unclebob/crap4java](https://github.com/unclebob/crap4java) — **8.0, no
+allowance, not configurable**.
+
+Because `CRAP(m) ≥ comp(m)` always, the single 8.0 number is two rules in
+one: a fully covered method passes only if CC ≤ 8, a fully uncovered method
+passes only if CC ≤ 2 (an uncovered CC-2 method scores 6.0; CC 3 scores
+12.0), and **any method with CC ≥ 9 fails at any coverage** — no test can
+save it, the complexity itself must come down. In between, the gate is a
+coverage floor that scales with complexity:
+
+| CC | Minimum coverage to pass (whole %) |
+|---|---|
+| 1–2 | 0% (always passes) |
+| 3 | 18% |
+| 4 | 38% |
+| 5 | 51% |
+| 6 | 62% |
+| 7 | 73% |
+| 8 | 100% |
+| ≥ 9 | impossible — CC itself must come down |
+
+**CC here reads higher than RuboCop's.** Spec §6 deliberately deviates from
+RuboCop `Metrics/CyclomaticComplexity` in two ways: every safe-navigation
+call counts, with no discount for repeated `&.` chains — each `&.` is a real
+branch on nil; and every block counts, with no whitelist of "iterating"
+methods — blocks are Ruby's loops, and a method whitelist is nondeterministic
+across DSLs. A method RuboCop scores at 7 can score well above 8 here, so
+the 8.0 gate is stricter than a naive RuboCop-max-7 comparison suggests.
+
+Known blind spots (spec §7.5, deliberate and documented): Ruby records no
+branch-arm coverage for `&&`/`||`/`and`/`or`, `rescue` clauses, or iterator
+blocks, so a method can reach 100% coverage with an untested short-circuit
+or rescue path; `# :nocov:` / `# simplecov:disable` markers remove methods
+from the gate entirely — the report footer counts every excluded method so
+a new marker is visible in output and diff review; and only method bodies
+are scored — class-body and top-level code is out of scope. Mutation
+testing is the complement that covers all three.
+
 ## The contract
 
 [spec.md](spec.md) plus the conformance corpus under `test/fixtures/` is the
