@@ -7,7 +7,11 @@ require_relative "../test_helper"
 class PipelineIntegrationTest < Minitest::Test
   include Crap4Ruby::SandboxHelper
 
-  BUNDLE_PATH = File.expand_path("../../.devenv/state/.bundle", __dir__)
+  # The active environment's bundle path first: the interactive devenv
+  # shell and `devenv test` export BUNDLE_PATH but warm DIFFERENT state
+  # directories (state/ vs test-state/), so a hardcoded path is cold on
+  # every fresh runner. The state path remains a fallback for bare runs.
+  BUNDLE_PATH = ENV.fetch("BUNDLE_PATH") { File.expand_path("../../.devenv/state/.bundle", __dir__) }
 
   CALC = <<~RUBY
     class Calc
