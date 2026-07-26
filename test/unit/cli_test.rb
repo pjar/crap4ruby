@@ -69,7 +69,41 @@ class CLITest < Minitest::Test
     end
   end
 
+  # §8: the gate compares unrounded values. A max exceeding 8 by less than
+  # half a Float ulp still fails the gate — a Float threshold cannot see it.
+  def test_gate_compares_the_unrounded_rational_max_exactly
+    stderr = StringIO.new
+    assert_equal 2, gate(Rational(8) + Rational(1, 10**30), stderr: stderr)
+    assert_includes stderr.string, "CRAP threshold exceeded: 8.00 > 8.0"
+  end
+
+  def test_gate_passes_a_max_of_exactly_eight
+    stderr = StringIO.new
+    assert_equal 0, gate(Rational(8), stderr: stderr)
+    assert_empty stderr.string
+  end
+
+  def test_gate_message_shows_the_rounded_max_to_two_decimals
+    stderr = StringIO.new
+    assert_equal 2, gate(Rational(841, 100), stderr: stderr)
+    assert_equal "CRAP threshold exceeded: 8.41 > 8.0\n", stderr.string
+  end
+
   private
+
+  GateRow = Struct.new(:method, :crap, keyword_init: true)
+
+  def gate(max_crap, stderr:)
+    method = Crap4Ruby::MethodInfo.new(
+      identity: "X#m", scope: "X", bare_name: "m", definition_line: 1,
+      span_start: 1, span_end: 1, span_byte_start: 0, span_byte_end: 1,
+      declaration_lines: [1], comp: 1, match_mode: :name_and_span
+    )
+    entry = Crap4Ruby::Report::Entry.new(row: GateRow.new(method: method, crap: max_crap), path: "x.rb")
+    report = Crap4Ruby::Report.new([entry], excluded_count: 0)
+    cli = Crap4Ruby::CLI.new([], stdout: StringIO.new, stderr: stderr, cwd: Dir.pwd)
+    cli.send(:gate, report)
+  end
 
   def run_cli(argv, cwd: Dir.pwd, stdout: StringIO.new, stderr: StringIO.new)
     Crap4Ruby::CLI.run(argv, stdout: stdout, stderr: stderr, cwd: cwd)

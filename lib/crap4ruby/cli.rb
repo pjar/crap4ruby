@@ -2,7 +2,9 @@ module Crap4Ruby
   # Option parsing and pipeline orchestration (spec §3, §4). Every failure
   # path raises Failure; the only Kernel#exit lives in exe/crap4ruby.
   class CLI
-    THRESHOLD = 8.0
+    # §8: the gate compares unrounded values — an exact Rational, because a
+    # Float 8.0 comparison rounds away a max within half an ulp of 8.
+    THRESHOLD = Rational(8)
 
     USAGE = <<~TEXT
       Usage: crap4ruby [options] [<path>...]
