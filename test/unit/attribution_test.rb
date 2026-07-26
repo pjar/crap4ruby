@@ -69,6 +69,35 @@ class AttributionTest < Minitest::Test
     assert_equal Rational(0), rows.fetch("Z#one_b").cov
   end
 
+  # X#a spans 2..3 (decl 2), X#b spans 3..5 (decl 3): line 3 is shared and
+  # is not a declaration line of every sibling.
+  SHARED_LINE_SOURCE = "class X\n  def a = (1 +\n    2); def b\n    :y\n  end\nend\n"
+
+  def test_ignored_line_shared_by_siblings_belongs_to_no_one
+    entry = { "lines" => [1, 1, "ignored", 1, nil, nil], "branches" => [], "methods" => [] }
+    result = attribute(SHARED_LINE_SOURCE, entry)
+    assert_empty result.excluded
+    rows = result.rows.to_h { |r| [r.method.identity, r] }
+    assert_equal 0, rows.fetch("X#a").units # the shared ignored line counts for neither sibling
+    assert_equal Rational(0), rows.fetch("X#a").cov
+    assert_equal Rational(1), rows.fetch("X#b").cov
+  end
+
+  def test_integer_counter_on_a_shared_sibling_line_still_raises_ambiguity
+    entry = { "lines" => [1, 1, 1, 1, nil, nil], "branches" => [], "methods" => [] }
+    error = assert_raises(Crap4Ruby::Failure) { attribute(SHARED_LINE_SOURCE, entry) }
+    assert_equal 3, error.exit_code
+    assert_includes error.message, "ambiguous same-line definitions"
+  end
+
+  def test_single_owner_ignored_lines_still_drive_exclusion
+    source = "class W\n  def only\n    :a\n    :b\n  end\nend\n"
+    entry = { "lines" => [1, 1, "ignored", "ignored", nil, nil], "branches" => [], "methods" => [] }
+    result = attribute(source, entry)
+    assert_equal ["W#only"], result.excluded.map(&:identity)
+    assert_empty result.rows
+  end
+
   private
 
   def attribute(source, entry)

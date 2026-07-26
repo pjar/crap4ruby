@@ -43,7 +43,7 @@ module Crap4Ruby
       @lines.each_with_index do |value, index|
         next unless unit?(value)
         line = index + 1
-        owner = line_owner(line)
+        owner = line_owner(line, ignored: value == "ignored")
         next if owner.nil?
         # §7.1: declaration lines execute at class-load time.
         next if @methods[owner].declaration_lines.include?(line)
@@ -75,10 +75,14 @@ module Crap4Ruby
       value.is_a?(Integer) || value == "ignored"
     end
 
-    def line_owner(line)
+    def line_owner(line, ignored:)
       candidates = innermost(line)
       return nil if candidates.empty?
       return candidates.first if candidates.size == 1
+      # §7.0: the failure triggers only when the shared line would actually
+      # yield a unit — an "ignored" entry never does, so it belongs to no
+      # sibling and enters no pre-ignore tally.
+      return nil if ignored
       # §7.0: zero-unit same-line definitions are fine — a line every
       # candidate declares never becomes a unit for any of them.
       return nil if candidates.all? { |index| @methods[index].declaration_lines.include?(line) }
