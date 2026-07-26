@@ -14,7 +14,9 @@ class ComplexityConformanceTest < Minitest::Test
     name = File.basename(file, ".rb")
 
     define_method("test_#{name}") do
-      source = File.read(file)
+      # Explicit UTF-8: a bare CI runner may have no locale, making the
+      # default external encoding US-ASCII and multibyte comments fatal.
+      source = File.read(file, encoding: Encoding::UTF_8)
       expectations = parse_annotations(source)
       rows = Crap4Ruby::MethodExtractor.extract(source)
       by_line = rows.group_by(&:definition_line)

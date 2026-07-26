@@ -14,11 +14,13 @@ class CoverageConformanceTest < Minitest::Test
     name = File.basename(dir)
 
     define_method("test_#{name}") do
-      report = JSON.parse(File.read(File.join(dir, "coverage.json")))
-      expected = JSON.parse(File.read(File.join(dir, "expected.json")))
+      # Explicit UTF-8 for the same reason as the complexity harness: no
+      # locale on a bare runner means US-ASCII default external encoding.
+      report = JSON.parse(File.read(File.join(dir, "coverage.json"), encoding: Encoding::UTF_8))
+      expected = JSON.parse(File.read(File.join(dir, "expected.json"), encoding: Encoding::UTF_8))
       entry = file_entry(report, dir, File.join(dir, "source.rb"))
 
-      methods = Crap4Ruby::MethodExtractor.extract(File.read(File.join(dir, "source.rb")))
+      methods = Crap4Ruby::MethodExtractor.extract(File.read(File.join(dir, "source.rb"), encoding: Encoding::UTF_8))
       result = Crap4Ruby::Attribution.call(methods, entry)
 
       assert_equal expected["rows"].map { |r| r["id"] }.sort,
