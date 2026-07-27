@@ -274,14 +274,30 @@ at invocation time, not load time). Prism node types are normative:
 | `\|\|`, `or` | `OrNode` | |
 | `\|\|=` (all receivers) | `LocalVariableOrWriteNode`, `InstanceVariableOrWriteNode`, `ClassVariableOrWriteNode`, `GlobalVariableOrWriteNode`, `ConstantOrWriteNode`, `ConstantPathOrWriteNode`, `CallOrWriteNode`, `IndexOrWriteNode` | constant forms cannot appear inside method bodies (dynamic constant assignment is a SyntaxError) but are listed for class-body completeness |
 | `&&=` (all receivers) | `LocalVariableAndWriteNode`, `InstanceVariableAndWriteNode`, `ClassVariableAndWriteNode`, `GlobalVariableAndWriteNode`, `ConstantAndWriteNode`, `ConstantPathAndWriteNode`, `CallAndWriteNode`, `IndexAndWriteNode` | |
-| safe navigation `&.` | `CallNode` with `safe_navigation?` | +1 for **every** `&.` call; no chain discount (deviation from RuboCop, which discounts repeated chains) |
+| safe navigation `&.` | `CallNode`, `CallOrWriteNode`, `CallAndWriteNode`, `CallOperatorWriteNode`, `CallTargetNode` — each with `safe_navigation?` | +1 for **every** `&.` call; no chain discount (deviation from RuboCop, which discounts repeated chains). Assignment fusion keeps the flag on the write/target node — see the additivity rule below |
 | any block (`do…end`, `{…}`, numbered params, `it`) | `BlockNode` | blocks are Ruby's loops; **no iterator-method whitelist** (deviation from RuboCop, which counts only recognized iterating methods) |
 | block pass (`&blk`, `&:sym`) | `BlockArgumentNode` | |
 | stabby lambda | `LambdaNode` | `proc {}` / `lambda {}` already count via `BlockNode`; a literal lambda that **is** a reportable method's body (§5) counts nowhere as a node |
 
+**Rows are additive.** A node matching several rows adds one per match:
+`a&.b ||= 1` is a `CallOrWriteNode` with `safe_navigation?` — the `||=`
+row plus the `&.` row, +2; `a&.c &&= 2` likewise +2; `a&.d += 3` adds
+only the `&.` row (+1), operator-writes being free as their own
+operation; `a&.b&.c ||= 1` adds +3 (two `&.` plus `||=`) — no chain
+discount through fused nodes; `for a&.b in xs` and `rescue => a&.b`
+preserve the flag on `CallTargetNode` (+1 on top of the loop/rescue
+row) — the write is skipped when the receiver is nil. Plain `a&.b = 1`
+is an ordinary safe `CallNode`, and `a&.b[i] ||= v` counts via its
+nested safe `CallNode` plus `IndexOrWriteNode`. The index write/target
+nodes also carry the flag structurally, but no valid Ruby sets it
+(`a&.[](i) ||= v` does not parse), so they are deliberately not listed
+in the `&.` row (CRA-8).
+
 Explicitly **free** (+0): `else`, `ensure`, `begin`, `case`/`case-in` shells,
 `break`, `next`, `redo`, `retry`, `return`, `defined?`, flip-flops
-(`FlipFlopNode`), plain assignments, and pattern internals other than the
+(`FlipFlopNode`), plain assignments and operator-writes as their own
+operation (rows they independently match — including the `&.` flag —
+still add), and pattern internals other than the
 `in` clause, its guard, and alternations.
 
 **Scope boundaries.** `DefNode`, `ClassNode`, `ModuleNode`,

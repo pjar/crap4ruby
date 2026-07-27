@@ -67,7 +67,10 @@ Node handling:
   is cc 1).
 - +1 dispatch is a flat `case node` over the §6 table. `WhenNode` adds
   `conditions.length`. `elsif` arrives as a nested `IfNode` in Prism, so
-  chains count naturally. `CallNode` adds 1 when `safe_navigation?`.
+  chains count naturally. `CallNode` adds 1 when `safe_navigation?`;
+  assignment fusion keeps that flag on the call-write/target lvalue
+  forms, which add their own row (when counted) plus the flag —
+  additive, per spec §6 (CRA-42).
 - Blocks/lambdas: +1 to the current context, then traversal continues in the
   same context (blocks are transparent for identity and counting except the
   four anon-scope constructors and reportable bodies).
