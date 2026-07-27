@@ -161,3 +161,7 @@ devenv shell --option languages.ruby.lsp.enable:bool false \
 
 The Prism pin, upgrade policy, and where score determinism actually comes
 from are documented in DESIGN.md §8.
+
+## License
+
+[MIT](LICENSE).

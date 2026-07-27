@@ -26,7 +26,7 @@ class PackagingIntegrationTest < Minitest::Test
 
       package = Gem::Package.new(gem_path)
       expected = Dir.glob("lib/**/*.rb", base: ROOT).sort +
-                 %w[CHANGELOG.md README.md exe/crap4ruby spec.md]
+                 %w[CHANGELOG.md LICENSE README.md exe/crap4ruby spec.md]
       assert_equal expected.sort, package.contents.sort, "packaged file list drifted"
 
       spec = package.spec
