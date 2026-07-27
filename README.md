@@ -47,10 +47,13 @@ Exit codes: `0` ok · `1` usage error · `2` CRAP threshold exceeded ·
 `3` coverage unavailable or invalid · `4` test command failed.
 
 ```
-Method                    CC    Cov%      CRAP  Location
-Billing::Invoice#total     6    61.9      8.41  app/models/billing/invoice.rb:41
-CRAP threshold exceeded: 8.41 > 8.0
+Method                       CC    Cov%      CRAP  Location
+Billing::Invoice#total        6    59.4      8.41  app/models/billing/invoice.rb:41
+Billing::Invoice#finalize!    4   100.0      4.00  app/models/billing/invoice.rb:78
 ```
+
+When the gate trips, `CRAP threshold exceeded: 8.41 > 8.0` is printed to
+**stderr** and the exit status is 2.
 
 ## The metric, honestly
 
@@ -131,9 +134,10 @@ file, no threshold tuning, no cop lists.
 
 [spec.md](spec.md) plus the conformance corpus under `test/fixtures/` is the
 complete, testable specification. Where prose and fixtures disagree, that is
-a bug in one of them — file it. Background and rationale live in
-[FINDINGS.md](FINDINGS.md); the implementation architecture in
-[DESIGN.md](DESIGN.md).
+a bug in one of them — file it. Background and rationale live in the
+repository's FINDINGS.md, and the implementation architecture in its
+DESIGN.md (both are development documents and are not shipped in the gem).
+Release history: [CHANGELOG.md](CHANGELOG.md).
 
 ## Development
 
