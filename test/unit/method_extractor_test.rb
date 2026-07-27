@@ -3,6 +3,39 @@ require_relative "../test_helper"
 # Cases the conformance corpus cannot express (harness limits: one row per
 # annotated line, no failure paths).
 class MethodExtractorTest < Minitest::Test
+  include Crap4Ruby::FixtureHelper
+
+  # §2: the grammar pin must actually reach Prism.parse. Pinned ("4.0") and
+  # default parsing are behaviorally identical on prism 1.9.0, so the only
+  # non-vacuous check is observing the call itself.
+  def test_extract_parses_under_the_pinned_ruby_4_0_grammar
+    captured = nil
+    original = Prism.method(:parse)
+    Prism.define_singleton_method(:parse) do |source, **options|
+      captured = options
+      original.call(source, **options)
+    end
+    begin
+      Crap4Ruby::MethodExtractor.extract("x = 1\n")
+    ensure
+      Prism.define_singleton_method(:parse, original)
+    end
+    assert_equal "4.0", captured[:version]
+    assert_equal Crap4Ruby::MethodExtractor::GRAMMAR_VERSION, captured[:version]
+  end
+
+  # §2: the boundary fixture's leading-operator continuation is 4.0-gated.
+  # If a prism upgrade ever accepts it at "3.4", the fixture stops proving
+  # the pin is live and this test fails loudly.
+  def test_grammar_boundary_fixture_is_rejected_under_ruby_3_4_grammar
+    source = File.read(fixture_path("complexity", "14_grammar_boundary.rb"),
+                       encoding: Encoding::UTF_8)
+    assert Prism.parse(source, version: "3.4").failure?,
+           "the boundary probe must be rejected by pre-4.0 grammar"
+    refute Prism.parse(source, version: Crap4Ruby::MethodExtractor::GRAMMAR_VERSION).failure?,
+           "the boundary probe must parse under the pinned grammar"
+  end
+
   def test_unparseable_source_fails_with_exit_3
     error = assert_raises(Crap4Ruby::Failure) { Crap4Ruby::MethodExtractor.extract("def broken(") }
     assert_equal 3, error.exit_code

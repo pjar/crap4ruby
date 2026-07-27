@@ -215,12 +215,15 @@ that could silently change counting is caught at `rake test`, not in
 production scores. Classify the new node in spec §6 first, then in the
 canary.
 
-**Grammar version.** `Prism.parse(source)` is called with no version
-option (`lib/crap4ruby/method_extractor.rb`), so analyzed files parse
-under the newest grammar the locked prism knows — crap4ruby on Ruby 3.3
-can analyze 4.x-syntax files, and a prism upgrade can change which files
-parse (exit 3 semantics). Whether the contract should pin a grammar
-version is an open Owner decision (board ticket CRA-12).
+**Grammar version.** `Prism.parse(source, version: GRAMMAR_VERSION)`
+pins analyzed files to Ruby 4.0 grammar (CRA-12 decision, spec §2) —
+regardless of which grammars the resident prism knows, so a prism
+upgrade cannot silently change which files parse (exit 3 semantics).
+Grammar bumps are explicit spec revisions with boundary fixtures
+(fixture 14 pins a 4.0-gated construct; a 4.1-rejection fixture waits
+until a prism release actually gates grammar at 4.1). The pin fixes the
+grammar mode, not the parser: bug fixes within 4.0 mode still arrive
+with prism upgrades, which the conformance corpus guards.
 
 **In-bundle activation caveat.** Running crap4ruby *through the analyzed
 project's bundle* (adding it to that project's Gemfile) would resolve

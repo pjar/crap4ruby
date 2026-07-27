@@ -20,7 +20,9 @@ escapes only by being simple.
 
 ## Requirements
 
-- CRuby ≥ 3.3 (the analyzed project and crap4ruby itself)
+- CRuby ≥ 3.3 (the analyzed project and crap4ruby itself); analyzed files
+  are parsed as Ruby 4.0 grammar (spec §2) — the runtime floor and the
+  syntax ceiling are independent bounds
 - The analyzed project uses Bundler and locks `simplecov` ≥ 1.0
 - Branch and method coverage enabled, e.g. in `.simplecov`:
 

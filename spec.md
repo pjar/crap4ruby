@@ -1,7 +1,8 @@
 # crap4ruby specification
 
-Version: 0.3 (draft, 2026-07-26; revised during implementation after a second
-external design review — Codex gpt-5.6-sol, high effort — and implementation
+Version: 0.4 (draft, 2026-07-27; adds the Ruby 4.0 analyzed-grammar pin, §2.
+0.3 was 2026-07-26, revised during implementation after a second external
+design review — Codex gpt-5.6-sol, high effort — and implementation
 findings; 0.2 was 2026-07-25, 21 findings triaged, see git history). This document plus the fixture corpus under
 `test/fixtures/` is the complete, testable specification, in the style of
 crap4java's `spec.md`. Where prose and fixtures disagree, that is a bug in one
@@ -27,6 +28,17 @@ CRAP(m) = comp(m)² × (1 − cov(m))³ + comp(m)
 - CRuby ≥ 3.3 (Prism and `json` as default gems). JRuby/TruffleRuby are
   unsupported: the required branch and method coverage criteria are
   unavailable there.
+- Analyzed files are parsed **as Ruby 4.0 grammar**, via `Prism.parse`'s
+  `version:` option (`"4.0"`). The two bounds are independent: CRuby ≥ 3.3
+  is the *runtime* floor for running the tool, Ruby 4.0 is the *syntax*
+  ceiling for analyzed files (a file the project's own runtime cannot
+  execute still fails its tests before analysis matters). Syntax beyond
+  the pin fails that file's analysis with exit 3 (§4.1). The pin is
+  spec-owned: a grammar bump is an explicit revision of this document with
+  boundary fixtures (§9.1, fixture 14), never a side effect of a prism
+  upgrade. The pin fixes the grammar *mode*, not the parser — prism bug
+  fixes within Ruby 4.0 mode still arrive with dependency upgrades, which
+  the conformance corpus guards.
 - The analyzed project must use Bundler and SimpleCov ≥ 1.0.
 - Runtime dependencies of crap4ruby itself: `prism`, `json`. Nothing else.
 
@@ -106,7 +118,7 @@ Strictly in this order:
 4. **Run** the test command under coverage (§4.3). If the child exits
    non-zero or dies on a signal: print its status, **do not score**, exit 4.
 5. **Read + validate** the report (§4.4).
-6. Parse, score, report, gate (§5–§8).
+6. Parse (as Ruby 4.0 grammar, §2), score, report, gate (§5–§8).
 
 ### 4.2 `--no-run` mode
 
