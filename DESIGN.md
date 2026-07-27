@@ -117,7 +117,7 @@ unit set is entirely `"ignored"`.
 
 ## 4. Pipeline (§2–§4)
 
-`CLI.run` — parse options (hand-rolled loop over a five-flag surface;
+`CLI.run` — parse options (hand-rolled loop over a small flag surface;
 OptionParser's error text and exit behavior are not worth adapting),
 then:
 
@@ -236,3 +236,56 @@ prism against that project's lock, not crap4ruby's own — potentially a
 different prism, hence different scores. Install and run crap4ruby as a
 standalone gem; it only shells into the analyzed project's bundle for
 the test run itself.
+
+## 9. Baseline ratchet (v2) — rationale (spec §11)
+
+Spec-first per CRA-11/CRA-45: §11 is contract, this section is why. No
+implementation exists yet; the only executable artifact is the pair of
+byte-exact no-baseline freeze tests in
+`test/integration/pipeline_test.rb`.
+
+**Components, not scores.** The baseline stores `(comp, units, hits,
+called)` — the exact §7 integers — because any stored *score* is either
+rounded (comparisons wrong by construction: a row displayed 8.00 can
+still fail the unrounded gate) or a serialized Rational (a parsing
+liability). Integers recompute CRAP exactly, keep the file
+human-reviewable, and make "worsened" a pure `Rational` comparison.
+`called` matters only for `units == 0` rows (§7.2) and is canonically
+`false` otherwise, so a diff line always means what it says.
+
+**metric_version, not the document version.** Scores are comparable only
+under the same scoring rules. Pinning to the spec's revision number would
+invalidate every baseline on editorial or CLI changes; a dedicated
+identifier moves only when scoring itself moves (identity, `comp`,
+units/hits, exclusion, arithmetic, threshold). Exact match, fail-closed
+(exit 3), regeneration Owner-reviewed — "compatible ranges" would
+reintroduce silent incomparability.
+
+**File presence engages.** Zero-configuration: the committed file is the
+opt-in, its diffs are the audit trail, and an explicit enable flag would
+not prevent a committed policy file from weakening the gate anyway. The
+baseline is trusted policy input — a hand-edited or deleted baseline is
+visible in review, which is the enforcement boundary; it is not
+tamper-proof and does not claim to be.
+
+**Strict shrink.** `--update-baseline` refuses any write that adds or
+worsens a row: new debt is fixed, never grandfathered, and a deliberate
+re-adoption is a visible file-delete-and-recreate the Owner reviews.
+Stale rows force a same-change update (exit 3, not a warning) so every
+improvement lands as a shrinking, reviewable diff — the RuboCop-TODO
+workflow without its silent-rot half. The costs are accepted loudly:
+line-key brittleness (an inserted comment above an offender is a
+new+stale pair) and changed-only CI's inability to prove freshness are
+documented in §11.3/§11.5 rather than papered over.
+
+**Exit split.** 2 = the code is worse than the policy allows
+(new/worsened); 3 = the policy artifact itself is unusable (malformed,
+stale, metric-mismatched) — same split as coverage artifacts (§4.4), and
+stale-beats-new precedence so a rename reads as "fix the baseline", not
+"new debt".
+
+**Canonical bytes.** The update command's output is byte-specified
+(ordering, indent, trailing newline) so equivalent data can never
+produce diff noise, and the §11.2 validator can reject unknown keys
+without ambiguity. Writes are atomic; failure leaves the previous file
+byte-identical.

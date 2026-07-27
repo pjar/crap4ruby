@@ -21,7 +21,8 @@ CRAP(m) = comp(m)² × (1 − cov(m))³ + comp(m)
 
 - `comp(m)` — cyclomatic complexity of method `m` (§6)
 - `cov(m)` — test coverage of `m` as a fraction 0.0–1.0 (§7)
-- Threshold: **8.0**, not configurable.
+- Threshold: **8.0**, not configurable. (v2: with an engaged baseline,
+  gate outcomes follow §11.3; the threshold itself is unchanged.)
 
 ## 2. Requirements
 
@@ -66,6 +67,7 @@ CRAP(m) = comp(m)² × (1 − cov(m))³ + comp(m)
 | `crap4ruby --coverage-file <path>` | read the coverage report from `<path>` instead of `<project root>/coverage/coverage.json` |
 | `crap4ruby --help` | print usage, exit 0 |
 | `crap4ruby --version` | print exactly `crap4ruby <version>` and a newline to stdout, exit 0 |
+| `crap4ruby --update-baseline` | **v2** (§11.4): full run, then rewrite the baseline, shrink-only |
 
 **`--help` and `--version`** short-circuit before project location, so they
 work outside a project. When both appear, the first one on the command line
@@ -90,16 +92,20 @@ globs. `--test-command` with `--no-run` is a usage
 error (exit 1). Unknown options and non-existent explicit paths are usage
 errors (exit 1). An empty selection (no `.rb` in explicit paths, or an empty
 `--changed` set) prints `nothing to analyze` and exits 0 — checked **before**
-any cleanup or test run (§4.1).
+any cleanup or test run (§4.1). **v2 (§11):** `--update-baseline` cannot
+combine with `--changed` or explicit paths (exit 1) and composes with
+`--no-run`; `--coverage-file` resolving to the baseline path is a usage
+error (§11.1); an engaged baseline changes the empty-selection rule
+(§11.4).
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | OK — no method above threshold (including "nothing to analyze") |
+| 0 | OK — no method above threshold (including "nothing to analyze"; v2: or every offender grandfathered by an engaged baseline §11.3, or a successful `--update-baseline` run §11.4) |
 | 1 | CLI usage error (also: no Gemfile, ambiguous/unavailable test runner) |
-| 2 | CRAP threshold exceeded |
-| 3 | coverage unavailable or invalid (missing/malformed report, schema mismatch, criteria disabled, stale, analyzed file absent or unparseable, ambiguous same-line definitions, cleanup failure) |
+| 2 | CRAP threshold exceeded (v2: or new/worsened offenders against an engaged baseline §11.3, or an `--update-baseline` write refused by the shrink rule §11.4) |
+| 3 | coverage unavailable or invalid (missing/malformed report, schema mismatch, criteria disabled, stale, analyzed file absent or unparseable, ambiguous same-line definitions, cleanup failure; v2: also a malformed, stale, or metric-mismatched baseline, §11) |
 | 4 | test command ran and failed |
 
 ## 4. Execution pipelines
@@ -120,9 +126,18 @@ Strictly in this order:
 5. **Read + validate** the report (§4.4).
 6. Parse (as Ruby 4.0 grammar, §2), score, report, gate (§5–§8).
 
+**v2 (§11):** with a baseline present, its static validation (§11.2)
+runs after file selection but **before step 1's empty-selection check**
+(and therefore before cleanup): a malformed baseline fails with exit 3
+even when there is nothing to analyze, never costs a test run, and never
+deletes anything. §11.4 defines what an empty selection then means for
+an engaged baseline.
+
 ### 4.2 `--no-run` mode
 
-Never deletes or writes anything. `--no-run` consumes a **trusted artifact**;
+Never deletes or writes anything (v2 exception: `--update-baseline
+--no-run` may write the baseline file — and only it — after every check
+below passes, §11.4). `--no-run` consumes a **trusted artifact**;
 these checks bound, but cannot eliminate, that trust (coverage configuration
 or test changes made after the run are detectable only via the tree/commit
 checks below):
@@ -236,7 +251,10 @@ Identity format:
   different constant and stays transparent). A `def` inside
   any other block uses the nearest enclosing named scope unchanged.
 - Rows are unique by **(file path, identity, definition line)**. Two
-  definitions of the same name produce two rows.
+  definitions of the same name produce two rows. v1 does not *enforce*
+  uniqueness of the full key — same-line duplicate definitions with equal
+  identities can collide, and both rows are kept; under an engaged v2
+  baseline such a collision is an analysis failure (§11.5).
 
 Identity is lexical — recorded exactly as written, never resolved through
 the runtime. Where SimpleCov's runtime naming diverges from it (a top-level
@@ -467,11 +485,17 @@ Billing::Invoice#finalize!                 4    100.0     4.00  app/models/billi
   `excluded by coverage markers: <N>`.
 - The gate compares **unrounded** values: if `max CRAP > 8.0`, print
   `CRAP threshold exceeded: <max to 2dp> > 8.0` to **stderr** and exit 2.
+  (v2: with an engaged baseline, §11.3's classification replaces this
+  plain max comparison; its diagnostics and exit precedence apply.)
 - No rows (nothing to analyze): print `nothing to analyze`, exit 0.
+  (v2: under an engaged baseline, §11.3/§11.4 govern — in-scope stale
+  rows still exit 3.)
 
 ## 9. Conformance fixtures
 
-The fixture corpus is the executable half of this spec.
+The fixture corpus is the executable half of this spec. It covers §§1–10
+(the v1 profile); §9.3 enumerates the corpus planned for §11, which lands
+with the v2 implementation ticket.
 
 ### 9.1 Complexity fixtures — `test/fixtures/complexity/*.rb`
 
@@ -515,8 +539,262 @@ the case directory, attributes coverage per §7, and asserts rows and
 exclusions exactly. These cases exercise §7 only; pipeline behavior (§4) is
 tested by integration tests, not fixtures.
 
+### 9.3 Planned v2 corpus — baseline ratchet (§11)
+
+*Plan only; these fixtures land with the §11 implementation ticket, keyed
+to §11's rules. Listed here so the contract and its executable half stay
+enumerated together.* Cases: `new_offender` → 2; `worsened_exact` → 2
+(including an exact worsening whose 2-decimal display ties, `8.00 >
+8.00 baselined`); `improved_row` → 0 with an `--update-baseline` shrink
+follow-up; `stale_row_full_run` → 3; `stale_via_deleted_file` → 3;
+`renamed_method_new_plus_stale` → 3 (precedence); `malformed_baseline`
+(unknown key, wrong type, duplicate row keys, row recomputing ≤ 8) → 3;
+`metric_version_mismatch` → 3; `changed_scoped_ratchet` (rows outside the
+freshness scope unchecked); `update_refuses_partial_selection` → 1;
+`update_refuses_growth` → 2, file untouched; `update_initial_creation`
+→ 0; `update_writes_empty_rows` → 0; `coverage_file_aliases_baseline`
+→ 1; `duplicate_row_key_under_ratchet` → 3;
+`empty_full_selection_stales_all` → 3 (and → 0 with `rows: []`);
+`update_initial_creation_rejects_invalid_rows` → 3;
+`changed_dir_composition_keeps_unchanged_offender` (an unchanged,
+still-failing grandfathered row under `--changed <dir>` is NOT stale);
+`changed_empty_selection_deletion_goes_stale` → 3. The no-baseline byte-for-byte
+guarantee (§11.1) is pinned NOW by exact-output integration tests
+(`test/integration/pipeline_test.rb`), the only executable artifact that
+lands with the spec revision itself.
+
 ## 10. Non-goals (v1)
 
-Configurable threshold, machine-readable output, baseline/regression mode,
-mutation analysis, non-Bundler projects, editor integration, monorepo/engine
-module grouping, Prolog/Datalog rules engine, JRuby/TruffleRuby.
+Configurable threshold, machine-readable output, baseline ratchet (a v1
+non-goal — specified for v2 in §11), mutation analysis, non-Bundler
+projects, editor integration, monorepo/engine module grouping,
+Prolog/Datalog rules engine, JRuby/TruffleRuby.
+
+## 11. Baseline ratchet (v2 — specified, not yet implemented)
+
+This section is the normative contract for the v2 baseline ratchet. **v1
+implements §§1–10 only**; a conforming v1 build has no baseline behavior,
+and §11.1's guarantee pins that. Conformance profiles: *v1* = §§1–10;
+*v2* = §§1–10 plus this section.
+
+### 11.1 Engagement and the no-baseline guarantee
+
+Ratchet mode engages exactly when `<project root>/crap4ruby-baseline.json`
+exists **as a regular file**; a symlink or other non-regular file at
+that path neither engages nor is ignored — it is refused, exit 3
+(§11.2). No flag enables ratchet mode: the committed file is the
+opt-in, and its diffs — creation, shrinkage, deletion — are ordinary
+reviewable commits.
+
+When the file is absent, every invocation **not using
+`--update-baseline`** behaves **byte-for-byte identically** to a build
+without §11: same stdout, same stderr, same exit codes. The surface
+additions themselves are the only exceptions: `--help`/usage text
+mentions the new flag, and `--update-baseline` itself is accepted (a
+§11-less build rejects it as an unknown option, exit 1; with no baseline
+present it performs initial creation, §11.4). The baseline is
+trusted, reviewable **policy input**, not tamper-proof enforcement:
+deleting or hand-editing it is visible in review, and review is the
+enforcement boundary.
+
+With an engaged baseline, or whenever `--update-baseline` is given,
+resolving `--coverage-file` to the baseline path is a usage error
+(exit 1), checked before any cleanup — §4.1's cleanup step must never
+be able to delete the baseline. With no baseline present and no
+`--update-baseline`, the invocation behaves as plain v1 per the
+guarantee above.
+
+### 11.2 Baseline file
+
+JSON object:
+
+```json
+{
+  "schema_version": "1.0",
+  "metric_version": 1,
+  "rows": [
+    { "path": "app/models/order.rb", "identity": "Order#total",
+      "line": 41, "comp": 9, "units": 12, "hits": 7, "called": false }
+  ]
+}
+```
+
+- `schema_version` — this file format; `1.0` (accept later `1.x`, reject
+  anything else).
+- `metric_version` — the **metric contract identifier**, deliberately
+  independent of this document's revision number. It increments only when
+  a spec change can affect row identity, reportability, `comp`, `units`,
+  `hits`, `called`, exclusion, CRAP arithmetic, or the threshold;
+  editorial, CLI, and report-format revisions do not move it. The current
+  metric version is **1**. Scores across metric versions are not
+  comparable: a mismatch is exit 3 in both gate and update modes, and
+  the remedy is an Owner-reviewed regeneration in two explicit steps —
+  **delete** the baseline, then re-create it with `--update-baseline`
+  (initial creation) on a green tree — reviewed as one commit.
+- `rows` — the grandfathered offenders. Stored values are the **exact §7
+  integer components**, never displayed or rounded scores: CRAP is
+  recomputed per §1/§7 in exact arithmetic
+  (`cov = units > 0 ? hits/units : (called ? 1 : 0)`), with no Float and
+  no decimal parsing anywhere.
+
+Validation — every failure is exit 3, checked before cleanup or test
+execution (§4.1): exact key sets (unknown or missing keys rejected;
+duplicate JSON member names rejected); types as shown; `comp >= 1`;
+`units >= 0`; `0 <= hits <= units`; `units == 0` implies `hits == 0`;
+`called` boolean, and `false` whenever `units > 0` (the invocation bit is
+never consulted when units exist, §7.2); `line >= 1`; row keys
+`(path, identity, line)` unique; every row's recomputed CRAP `> 8` — a
+row at or under the threshold has no business being grandfathered.
+
+Canonical serialization (what `--update-baseline` writes) is fully
+byte-determined: UTF-8 with LF line endings; every object member and
+array element on its own line; two-space indentation per nesting level;
+`": "` between key and value; `,` immediately after a member/element
+that has a successor; no trailing spaces; an empty array prints as
+`[]` on the member's line; top-level keys in the order `schema_version`,
+`metric_version`, `rows`; row keys in the order `path`, `identity`,
+`line`, `comp`, `units`, `hits`, `called`; rows sorted by
+`(path, line, identity)` with byte-wise string comparison; closing
+`]`/`}` on their own line at the parent's indentation (standard
+pretty-print); integers rendered as plain decimal digit runs (no sign,
+no exponent, no leading zeros); booleans as `true`/`false`; strings
+escaped per RFC 8259 using exactly the short escapes `\"` `\\` `\b`
+`\f` `\n` `\r` `\t`, `\u00XX` (lowercase hex) for other control
+characters, and all other characters emitted verbatim as UTF-8; one
+trailing newline after the closing brace. Writes are atomic
+(write-temp-then-rename within the project root); a baseline path that
+is a symlink or not a regular file is refused with exit 3 in **both**
+the read (engagement) and write paths — the artifact is unusable; on
+any failure the existing file remains byte-for-byte untouched.
+
+### 11.3 Gate semantics under ratchet
+
+The run, report table, and footer are unchanged (§4, §8). After scoring,
+each analyzed row with unrounded CRAP `> 8` is classified:
+
+- **new** — key `(path, identity, line)` absent from the baseline;
+- **worsened** — key present and current CRAP `>` the stored components'
+  recomputed CRAP (exact comparison);
+- **grandfathered** — key present, current CRAP `<=` stored. An
+  improvement does not rewrite the baseline (§11.4 does).
+
+Staleness is checked against a **freshness scope**, defined exactly:
+
+- A **full run** (default selection; no `--changed`, no explicit paths)
+  freshness-checks *every* baseline row, including rows whose `path` no
+  longer exists — deleted and renamed files go stale loudly.
+- A **partial run without `--changed`** (explicit paths only): the scope
+  is the analyzed files' paths plus, for each explicit **directory**
+  argument, every baseline row `path` under that directory — whether or
+  not the file still exists. This is sound because every existing `.rb`
+  under such a directory *is* analyzed, so an in-scope row with no
+  reported match is genuinely gone, moved, or passing. (An explicit
+  *file* argument that does not exist is already a usage error, §3.)
+- A **`--changed` run** (alone or composed with explicit paths): the
+  scope is the analyzed files' paths plus every git-reported deleted
+  path and rename origin (restricted to the explicit paths when
+  composed) — and nothing else. An unchanged, unanalyzed file is
+  **never** freshness-checked, so its grandfathered rows cannot go
+  falsely stale under the §3 intersection semantics.
+
+Rows outside the scope are not checked — so **changed-only CI cannot
+establish baseline freshness, nor see worsening outside the analyzed
+set** (a test-only change can reduce an unchanged method's coverage
+without the ratchet examining it); an authoritative full run is
+required for both.
+
+A baseline row is **stale** when, within the freshness scope, it no
+longer corresponds to a failing row: its file is gone, no reported row
+carries its key, or the row at its key no longer exceeds the threshold.
+
+Diagnostics: after the report, every finding prints to stderr, one line
+per row, sorted `(path, line, identity)`. In these lines `<path>` and
+`<identity>` are rendered with a literal backslash escaped as `\\` and
+control bytes escaped (`\n`, `\r`, `\t`; other bytes below 0x20 as
+`\xNN`, lowercase hex) so a hostile filename cannot break the one-line
+format; all other characters print verbatim. `<2dp>` is §8's half-up
+two-decimal rendering:
+
+```
+baseline: new offender <identity> (<path>:<line>) CRAP <2dp>
+baseline: worsened <identity> (<path>:<line>) CRAP <2dp> > <2dp> baselined
+baseline: stale row <identity> (<path>:<line>) — no longer failing here; run --update-baseline
+```
+
+Then exactly one exit code, by precedence: any stale → **exit 3**; else
+any new/worsened → **exit 2**; else 0. A rename therefore surfaces as a
+stale old key plus a new key and exits 3. Two-decimal display can render
+an exact worsening as `8.00 > 8.00 baselined`; the comparison is exact,
+as in §8's gate.
+
+Rows not exceeding the threshold never consult the baseline: the 8.0
+gate is untouched for everything not grandfathered. The ratchet
+constrains only per-method scores — splitting an offender into several
+sub-threshold methods legitimately clears it (the old row goes stale);
+aggregate file or class complexity is out of scope.
+
+### 11.4 `--update-baseline`
+
+`crap4ruby --update-baseline` performs the normal **full** run (default
+selection; combining with `--changed` or explicit paths is a usage error,
+exit 1 — a partial analysis must never rewrite the baseline), then
+rewrites the baseline to exactly the currently-failing rows in canonical
+form. It composes with `--no-run` under §4.2's single-write exception.
+
+**Shrink-only.** Against an existing valid baseline the write is refused
+(exit 2, file untouched) unless the new row set is a **subset by key**
+and every retained key's recomputed CRAP is `<=` its stored value. New
+or worsened debt is never baselined — fix it, or the Owner reviews a
+deliberate regeneration (§11.5). Stale rows are permitted removals —
+that is the point. A consequence stated plainly: a *moved* offender (new
+key + stale old key) cannot be migrated by `--update-baseline` alone —
+the new key would violate the subset rule; §11.5 gives the remedies.
+With no existing file, creation is unrestricted (initial adoption),
+except that the rows to be written must satisfy §11.2's own validation —
+duplicate keys or any other violation abort with exit 3 and no write; a
+written baseline must always re-validate. A malformed or
+metric-mismatched existing file is not "initial creation": exit 3.
+
+A successful update exits **0** even though failing rows exist — the
+requested outcome is the write; the gate question belongs to the next
+ordinary run. It prints no confirmation of its own: the run's report
+table is the only stdout, and stderr stays empty on success. An empty
+result set writes `"rows": []` (an active ratchet at zero debt; delete
+the file to disengage).
+
+Empty selection under an engaged baseline: the run still validates the
+baseline **and applies its §11.3 freshness scope** — staleness needs no
+analysis, only the baseline and (for `--changed`) git status. An
+ordinary run prints `nothing to analyze` to stdout, then exits 3 with
+the stale diagnostics on stderr when any in-scope row is stale, else 0.
+Consequently: an empty full selection with non-empty `rows` stales
+everything (scope = every row); an empty `--changed` selection still
+carries git-reported deletions and rename origins, so deleting a
+baselined file goes stale even when nothing else changed — §11.3's
+deletion clause is live in exactly its motivating scenario; an empty
+explicit-directory selection sweeps that directory's rows. An empty
+scope exits 0. `--update-baseline` with an empty full selection prints
+`nothing to analyze` and writes the empty baseline, exit 0. Without a
+baseline, §3's early return is byte-for-byte unchanged.
+
+### 11.5 Row keys and accepted brittleness
+
+Keys are `(path, identity, line)` — §8's report key. They are **brittle
+by design**: inserting a line above a grandfathered method changes its
+key, surfacing as new + stale (exit 3 on a full run) although the code
+did not change; renames and moves do the same. Because the shrink rule
+is subset-by-key (§11.4), `--update-baseline` alone cannot migrate a
+moved key. The accepted remedies are: get the method under the
+threshold (always the better exit), or an Owner-reviewed
+**regeneration** — delete the baseline and re-create it with
+`--update-baseline` in the same change; the two-file diff shows the
+migration plainly. This friction is the deliberate price of exact keys
+and a strictly shrinking file; a similarity-matching scheme was
+rejected as nondeterministic.
+
+Duplicate keys: §5 keeps rows unique by key as a *modeling* rule, but v1
+does not enforce it (same-line duplicate definitions can collide). Under
+an engaged baseline a duplicate full key among reportable rows is an
+analysis failure (exit 3) — the baseline cannot address either row
+unambiguously. Zero-unit same-line siblings with distinct identities
+remain fine (§7.0).
