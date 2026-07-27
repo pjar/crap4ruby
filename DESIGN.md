@@ -112,7 +112,7 @@ unit set is entirely `"ignored"`.
 
 ## 4. Pipeline (§2–§4)
 
-`CLI.run` — parse options (hand-rolled loop over a five-flag surface;
+`CLI.run` — parse options (hand-rolled loop over a small flag surface;
 OptionParser's error text and exit behavior are not worth adapting),
 then:
 

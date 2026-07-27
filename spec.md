@@ -84,7 +84,7 @@ error (§11.1); an engaged baseline changes the empty-selection rule
 
 | Code | Meaning |
 |---|---|
-| 0 | OK — no method above threshold (including "nothing to analyze") |
+| 0 | OK — no method above threshold (including "nothing to analyze"; v2: or every offender grandfathered by an engaged baseline §11.3, or a successful `--update-baseline` run §11.4) |
 | 1 | CLI usage error (also: no Gemfile, ambiguous/unavailable test runner) |
 | 2 | CRAP threshold exceeded (v2: or new/worsened offenders against an engaged baseline, §11.3) |
 | 3 | coverage unavailable or invalid (missing/malformed report, schema mismatch, criteria disabled, stale, analyzed file absent or unparseable, ambiguous same-line definitions, cleanup failure; v2: also a malformed, stale, or metric-mismatched baseline, §11) |
@@ -108,9 +108,12 @@ Strictly in this order:
 5. **Read + validate** the report (§4.4).
 6. Parse, score, report, gate (§5–§8).
 
-**v2 (§11):** with a baseline present, its static validation (§11.2) runs
-immediately after step 1 — before cleanup, so a malformed baseline never
-costs a test run and never deletes anything.
+**v2 (§11):** with a baseline present, its static validation (§11.2)
+runs after file selection but **before step 1's empty-selection check**
+(and therefore before cleanup): a malformed baseline fails with exit 3
+even when there is nothing to analyze, never costs a test run, and never
+deletes anything. §11.4 defines what an empty selection then means for
+an engaged baseline.
 
 ### 4.2 `--no-run` mode
 
@@ -498,7 +501,9 @@ follow-up; `stale_row_full_run` → 3; `stale_via_deleted_file` → 3;
 freshness scope unchecked); `update_refuses_partial_selection` → 1;
 `update_refuses_growth` → 2, file untouched; `update_initial_creation`
 → 0; `update_writes_empty_rows` → 0; `coverage_file_aliases_baseline`
-→ 1; `duplicate_row_key_under_ratchet` → 3. The no-baseline byte-for-byte
+→ 1; `duplicate_row_key_under_ratchet` → 3;
+`empty_full_selection_stales_all` → 3 (and → 0 with `rows: []`);
+`update_initial_creation_rejects_invalid_rows` → 3. The no-baseline byte-for-byte
 guarantee (§11.1) is pinned NOW by exact-output integration tests
 (`test/integration/pipeline_test.rb`), the only executable artifact that
 lands with the spec revision itself.
@@ -523,10 +528,13 @@ Ratchet mode engages exactly when `<project root>/crap4ruby-baseline.json`
 exists. No flag enables it: the committed file is the opt-in, and its
 diffs — creation, shrinkage, deletion — are ordinary reviewable commits.
 
-When the file is absent, behavior is **byte-for-byte identical** to a
-build without §11: same stdout, same stderr, same exit codes, for every
-invocation. (Sole exception: `--help`/usage text mentions
-`--update-baseline` — the surface addition itself.) The baseline is
+When the file is absent, every invocation **not using
+`--update-baseline`** behaves **byte-for-byte identically** to a build
+without §11: same stdout, same stderr, same exit codes. The surface
+additions themselves are the only exceptions: `--help`/usage text
+mentions the new flag, and `--update-baseline` itself is accepted (a
+§11-less build rejects it as an unknown option, exit 1; with no baseline
+present it performs initial creation, §11.4). The baseline is
 trusted, reviewable **policy input**, not tamper-proof enforcement:
 deleting or hand-editing it is visible in review, and review is the
 enforcement boundary.
@@ -558,9 +566,10 @@ JSON object:
   `hits`, `called`, exclusion, CRAP arithmetic, or the threshold;
   editorial, CLI, and report-format revisions do not move it. The current
   metric version is **1**. Scores across metric versions are not
-  comparable: a mismatch is exit 3 in both gate and update modes, and the
-  remedy is an Owner-reviewed regeneration (delete or `--update-baseline`
-  on a green tree, reviewed as its own commit).
+  comparable: a mismatch is exit 3 in both gate and update modes, and
+  the remedy is an Owner-reviewed regeneration in two explicit steps —
+  **delete** the baseline, then re-create it with `--update-baseline`
+  (initial creation) on a green tree — reviewed as one commit.
 - `rows` — the grandfathered offenders. Stored values are the **exact §7
   integer components**, never displayed or rounded scores: CRAP is
   recomputed per §1/§7 in exact arithmetic
@@ -576,15 +585,23 @@ never consulted when units exist, §7.2); `line >= 1`; row keys
 `(path, identity, line)` unique; every row's recomputed CRAP `> 8` — a
 row at or under the threshold has no business being grandfathered.
 
-Canonical serialization (what `--update-baseline` writes, byte-exact so
-diffs stay minimal and mergeable): UTF-8; two-space indent; top-level
-keys in the order `schema_version`, `metric_version`, `rows`; row keys in
-the order `path`, `identity`, `line`, `comp`, `units`, `hits`, `called`;
-rows sorted by `(path, line, identity)`; JSON's default escaping; one
-trailing newline. Writes are atomic (write-temp-then-rename within the
-project root); a baseline path that is a symlink or not a regular file is
-refused; on any failure the existing file remains byte-for-byte
-untouched.
+Canonical serialization (what `--update-baseline` writes) is fully
+byte-determined: UTF-8 with LF line endings; every object member and
+array element on its own line; two-space indentation per nesting level;
+`": "` between key and value; `,` immediately after a member/element
+that has a successor; no trailing spaces; an empty array prints as
+`[]` on the member's line; top-level keys in the order `schema_version`,
+`metric_version`, `rows`; row keys in the order `path`, `identity`,
+`line`, `comp`, `units`, `hits`, `called`; rows sorted by
+`(path, line, identity)` with byte-wise string comparison; strings
+escaped per RFC 8259 using exactly the short escapes `\"` `\\` `\b`
+`\f` `\n` `\r` `\t`, `\u00XX` (lowercase hex) for other control
+characters, and all other characters emitted verbatim as UTF-8; one
+trailing newline after the closing brace. Writes are atomic
+(write-temp-then-rename within the project root); a baseline path that
+is a symlink or not a regular file is refused with exit 3 in **both**
+the read (engagement) and write paths — the artifact is unusable; on
+any failure the existing file remains byte-for-byte untouched.
 
 ### 11.3 Gate semantics under ratchet
 
@@ -597,24 +614,33 @@ each analyzed row with unrounded CRAP `> 8` is classified:
 - **grandfathered** — key present, current CRAP `<=` stored. An
   improvement does not rewrite the baseline (§11.4 does).
 
-Staleness is checked against a **freshness scope**:
+Staleness is checked against a **freshness scope**, defined exactly:
 
 - A **full run** (default selection; no `--changed`, no explicit paths)
   freshness-checks *every* baseline row, including rows whose `path` no
   longer exists — deleted and renamed files go stale loudly.
-- A **partial run** (`--changed` or explicit paths) checks only rows
-  whose `path` lies inside the analyzed selection; for `--changed`,
-  deleted paths and rename origins reported by git belong to the scope
-  even though they are not scored. Rows outside the scope are not
-  checked — so **changed-only CI cannot establish baseline freshness**;
-  an authoritative full run is required for that.
+- A **partial run** (`--changed` or explicit paths): the scope is the
+  union of (a) the analyzed files' paths; (b) for each explicit
+  **directory** argument, every baseline row `path` under that directory
+  — whether or not the file still exists; (c) for `--changed`, every
+  deleted path and rename origin reported by git. (An explicit *file*
+  argument that does not exist is already a usage error, §3.) Rows
+  outside the scope are not checked — so **changed-only CI cannot
+  establish baseline freshness, nor see worsening outside the analyzed
+  set** (a test-only change can reduce an unchanged method's coverage
+  without the ratchet examining it); an authoritative full run is
+  required for both.
 
 A baseline row is **stale** when, within the freshness scope, it no
 longer corresponds to a failing row: its file is gone, no reported row
 carries its key, or the row at its key no longer exceeds the threshold.
 
 Diagnostics: after the report, every finding prints to stderr, one line
-per row, sorted `(path, line, identity)`:
+per row, sorted `(path, line, identity)`. In these lines `<path>` and
+`<identity>` are rendered with control bytes escaped (`\n`, `\r`, `\t`;
+other bytes below 0x20 as `\xNN`) so a hostile filename cannot break the
+one-line format; all other characters print verbatim. `<2dp>` is §8's
+half-up two-decimal rendering:
 
 ```
 baseline: new offender <identity> (<path>:<line>) CRAP <2dp>
@@ -643,12 +669,17 @@ rewrites the baseline to exactly the currently-failing rows in canonical
 form. It composes with `--no-run` under §4.2's single-write exception.
 
 **Shrink-only.** Against an existing valid baseline the write is refused
-(exit 2, file untouched) unless the new row set is a subset by key and
-every retained key's recomputed CRAP is `<=` its stored value. New or
-worsened debt is never baselined — fix it, or the Owner reviews a
-deliberate regeneration (delete the file, re-create, review the diff).
-Stale rows are permitted removals — that is the point. With no existing
-file, creation is unrestricted (initial adoption). A malformed or
+(exit 2, file untouched) unless the new row set is a **subset by key**
+and every retained key's recomputed CRAP is `<=` its stored value. New
+or worsened debt is never baselined — fix it, or the Owner reviews a
+deliberate regeneration (§11.5). Stale rows are permitted removals —
+that is the point. A consequence stated plainly: a *moved* offender (new
+key + stale old key) cannot be migrated by `--update-baseline` alone —
+the new key would violate the subset rule; §11.5 gives the remedies.
+With no existing file, creation is unrestricted (initial adoption),
+except that the rows to be written must satisfy §11.2's own validation —
+duplicate keys or any other violation abort with exit 3 and no write; a
+written baseline must always re-validate. A malformed or
 metric-mismatched existing file is not "initial creation": exit 3.
 
 A successful update exits **0** even though failing rows exist — the
@@ -656,22 +687,30 @@ requested outcome is the write; the gate question belongs to the next
 ordinary run. An empty result set writes `"rows": []` (an active ratchet
 at zero debt; delete the file to disengage).
 
-Empty selection under an engaged baseline: a **full** run still validates
-the baseline and stales every row (`--update-baseline` writes the empty
-baseline, exit 0); an empty *partial* selection validates static
-structure, prints `nothing to analyze`, exit 0. Without a baseline, §3's
-early return is unchanged.
+Empty selection under an engaged baseline: an ordinary **full** run
+still validates the baseline, prints `nothing to analyze` to stdout,
+and — when `rows` is non-empty — every row is stale: the §11.3 stale
+diagnostics print to stderr and the run exits 3 (`rows: []` exits 0).
+`--update-baseline` with an empty full selection writes the empty
+baseline, exit 0. An empty *partial* selection validates static
+structure only (no freshness scope), prints `nothing to analyze`,
+exit 0. Without a baseline, §3's early return is byte-for-byte
+unchanged.
 
 ### 11.5 Row keys and accepted brittleness
 
 Keys are `(path, identity, line)` — §8's report key. They are **brittle
 by design**: inserting a line above a grandfathered method changes its
 key, surfacing as new + stale (exit 3 on a full run) although the code
-did not change; renames and moves do the same. The accepted remedy is
-`--update-baseline` in the same change — the baseline diff makes the
-move reviewable; getting under the threshold is always the better exit.
-This brittleness is the deliberate price of exact keys; a
-similarity-matching scheme was rejected as nondeterministic.
+did not change; renames and moves do the same. Because the shrink rule
+is subset-by-key (§11.4), `--update-baseline` alone cannot migrate a
+moved key. The accepted remedies are: get the method under the
+threshold (always the better exit), or an Owner-reviewed
+**regeneration** — delete the baseline and re-create it with
+`--update-baseline` in the same change; the two-file diff shows the
+migration plainly. This friction is the deliberate price of exact keys
+and a strictly shrinking file; a similarity-matching scheme was
+rejected as nondeterministic.
 
 Duplicate keys: §5 keeps rows unique by key as a *modeling* rule, but v1
 does not enforce it (same-line duplicate definitions can collide). Under
