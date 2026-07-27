@@ -560,7 +560,7 @@ freshness scope unchecked); `update_refuses_partial_selection` → 1;
 → 1; `duplicate_row_key_under_ratchet` → 3;
 `empty_full_selection_stales_all` → 3 (and → 0 with `rows: []`);
 `update_initial_creation_rejects_invalid_rows` → 3;
-`changed_dir_composition_keeps_unchanged_offender` (an unchanged,
+`changed_dir_composition_keeps_unchanged_offender` → 0 (an unchanged,
 still-failing grandfathered row under `--changed <dir>` is NOT stale);
 `changed_empty_selection_deletion_goes_stale` → 3. The no-baseline byte-for-byte
 guarantee (§11.1) is pinned NOW by exact-output integration tests
@@ -643,7 +643,10 @@ JSON object:
 
 Validation — every failure is exit 3, checked before cleanup or test
 execution (§4.1): exact key sets (unknown or missing keys rejected;
-duplicate JSON member names rejected); types as shown; `comp >= 1`;
+duplicate JSON member names rejected); types as shown; `path` a
+normalized project-root-relative path — no leading `/` and no empty,
+`.`, or `..` segments (§11.3's containment and key matching are lexical
+byte comparisons, which only the normalized form can satisfy); `comp >= 1`;
 `units >= 0`; `0 <= hits <= units`; `units == 0` implies `hits == 0`;
 `called` boolean, and `false` whenever `units > 0` (the invocation bit is
 never consulted when units exist, §7.2); `line >= 1`; row keys
@@ -658,9 +661,12 @@ that has a successor; no trailing spaces; an empty array prints as
 `[]` on the member's line; top-level keys in the order `schema_version`,
 `metric_version`, `rows`; row keys in the order `path`, `identity`,
 `line`, `comp`, `units`, `hits`, `called`; rows sorted by
-`(path, line, identity)` with byte-wise string comparison; closing
-`]`/`}` on their own line at the parent's indentation (standard
-pretty-print); integers rendered as plain decimal digit runs (no sign,
+`(path, line, identity)` with byte-wise string comparison; the
+top-level `{` is the file's first byte and stands alone on the first
+line; a row object's `{` stands alone on its array-element line, its
+first member beginning on the next line; closing `]`/`}` on their own
+line at the parent's indentation; no blank lines anywhere; integers
+rendered as plain decimal digit runs (no sign,
 no exponent, no leading zeros); booleans as `true`/`false`; strings
 escaped per RFC 8259 using exactly the short escapes `\"` `\\` `\b`
 `\f` `\n` `\r` `\t`, `\u00XX` (lowercase hex) for other control
@@ -690,10 +696,16 @@ Staleness is checked against a **freshness scope**, defined exactly:
 - A **partial run without `--changed`** (explicit paths only): the scope
   is the analyzed files' paths plus, for each explicit **directory**
   argument, every baseline row `path` under that directory — whether or
-  not the file still exists. This is sound because every existing `.rb`
-  under such a directory *is* analyzed, so an in-scope row with no
-  reported match is genuinely gone, moved, or passing. (An explicit
-  *file* argument that does not exist is already a usage error, §3.)
+  not the file still exists. "Under" is decided lexically: the directory
+  argument is normalized to a project-root-relative path, and a row is
+  under it when its `path` begins with that path followed by `/` — a
+  pure byte comparison, no filesystem access or symlink resolution.
+  This is sound because every existing `.rb` under such a directory *is*
+  analyzed (rows inside dot-directories, which §3's glob never enters,
+  go stale exactly as they would under a full run), so an in-scope row
+  with no reported match is genuinely gone, moved, passing, or newly
+  marker-excluded (§7.4). (An explicit *file* argument that does not
+  exist is already a usage error, §3.)
 - A **`--changed` run** (alone or composed with explicit paths): the
   scope is the analyzed files' paths plus every git-reported deleted
   path and rename origin (restricted to the explicit paths when
@@ -778,8 +790,11 @@ baselined file goes stale even when nothing else changed — §11.3's
 deletion clause is live in exactly its motivating scenario; an empty
 explicit-directory selection sweeps that directory's rows. An empty
 scope exits 0. `--update-baseline` with an empty full selection prints
-`nothing to analyze` and writes the empty baseline, exit 0. Without a
-baseline, §3's early return is byte-for-byte unchanged.
+`nothing to analyze` and writes the empty baseline, exit 0 — including
+**initial creation**: with no baseline present it still writes
+`"rows": []`, engaging the ratchet at zero debt. §3's untouched
+empty-selection early return applies only to **non-update** invocations
+without a baseline; there it is byte-for-byte unchanged.
 
 ### 11.5 Row keys and accepted brittleness
 
