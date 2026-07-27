@@ -1,6 +1,10 @@
 # crap4ruby specification
 
-Version: 0.4 (draft, 2026-07-27; adds the Ruby 4.0 analyzed-grammar pin, §2.
+Version: 0.4 (draft, 2026-07-27; adds the Ruby 4.0 analyzed-grammar pin (§2,
+CRA-46), the `--version` flag (§3, CRA-47), def-receiver counting and
+`define_method` singleton dot identity (§5/§6, CRA-43), safe-navigation
+call-write counting (§6, CRA-42), and the v2 baseline-ratchet design (§11
+plus satellite riders, CRA-45).
 0.3 was 2026-07-26, revised during implementation after a second external
 design review — Codex gpt-5.6-sol, high effort — and implementation
 findings; 0.2 was 2026-07-25, 21 findings triaged, see git history). This document plus the fixture corpus under

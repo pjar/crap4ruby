@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Implements [spec.md](spec.md) 0.4.
+
+### Added
+
+- `--version` flag: prints exactly `crap4ruby <version>`, short-circuits like
+  `--help` (spec §3, CRA-47).
+- Analyzed-grammar pin: source is parsed as Ruby 4.0 grammar regardless of the
+  running interpreter, with a normative upgrade policy (spec §2, CRA-46).
+- Baseline-ratchet design for legacy adoption, specified as spec §11 (v2 —
+  not yet implemented); the byte-for-byte no-baseline guarantee is pinned now
+  by integration freeze tests (CRA-45).
+
+### Changed
+
+- Cyclomatic complexity: `def` receiver expressions now count in the
+  enclosing method, mirroring the `define_method` scope-boundary rule
+  (spec §6, CRA-43).
+- Cyclomatic complexity: safe navigation fused into assignments (`a&.b ||= x`,
+  `a&.b &&= x`, `a&.b += x`) and call targets now counts the `&.` flag on the
+  write/target node, additively with the assignment's own contribution
+  (spec §6, CRA-42).
+- Report identity: `define_method` in lexical singleton scope (`class <<
+  self` / `class << <expr>`) reports with a dot separator, matching sibling
+  `def`s there; display-only, attribution unaffected (spec §5, CRA-43).
+
+### Fixed
+
+- Gemspec file list: an empty `git ls-files` result (tree sitting untracked
+  inside an unrelated repository) now falls back to the glob list instead of
+  packaging an empty gem (CRA-40).
+
 ## [0.1.0] - 2026-07-26
 
 Initial release, implementing [spec.md](spec.md) 0.3. The spec plus the
