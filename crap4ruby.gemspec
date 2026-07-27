@@ -10,8 +10,18 @@ Gem::Specification.new do |spec|
                      "score exceeds 8.0. See spec.md for the full contract."
 
   spec.required_ruby_version = ">= 3.3"
+  spec.metadata = { "rubygems_mfa_required" => "true" }
 
-  spec.files = Dir["lib/**/*.rb", "exe/*", "spec.md", "README.md"]
+  # Git-scoped so an untracked stray file can never ship; the plain globs
+  # remain the fallback when git is unavailable at build time.
+  candidates = Dir.glob(["lib/**/*.rb", "exe/*", "spec.md", "README.md", "CHANGELOG.md"], base: __dir__)
+  tracked = begin
+    listed = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL, &:read).split("\x0")
+    $?.success? ? listed : nil
+  rescue SystemCallError
+    nil
+  end
+  spec.files = tracked ? candidates & tracked : candidates
   spec.bindir = "exe"
   spec.executables = ["crap4ruby"]
 
