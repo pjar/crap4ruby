@@ -16,6 +16,7 @@ module Crap4Ruby
         --test-command "<cmd>"          run <cmd> under `simplecov run` instead of the detected command
         --coverage-file <path>          coverage report location (default: <project root>/coverage/coverage.json)
         --help                          print this help
+        --version                       print the version
 
       Exit codes: 0 ok · 1 usage error · 2 CRAP threshold exceeded · 3 coverage unavailable/invalid · 4 tests failed
     TEXT
@@ -37,13 +38,19 @@ module Crap4Ruby
       @no_run = false
       @test_command = nil
       @coverage_file = nil
-      @help = false
+      @short_circuit = nil
     end
 
     def run
       parse!
-      if @help
+      # §3: --help/--version answer before Project.locate, so they work
+      # outside a project; when both appear, the first one seen wins.
+      case @short_circuit
+      when :help
         @stdout.puts USAGE
+        return 0
+      when :version
+        @stdout.puts "crap4ruby #{VERSION}"
         return 0
       end
 
@@ -85,7 +92,8 @@ module Crap4Ruby
       until args.empty?
         arg = args.shift
         case arg
-        when "--help" then @help = true
+        when "--help" then @short_circuit ||= :help
+        when "--version" then @short_circuit ||= :version
         when "--changed" then @changed = true
         when "--no-run" then @no_run = true
         when "--test-command" then @test_command = option_value(arg, args)

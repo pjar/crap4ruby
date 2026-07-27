@@ -71,6 +71,13 @@ class PackagingIntegrationTest < Minitest::Test
       )
       assert status.success?, "installed exe failed: #{err}"
       assert_includes out, "Usage: crap4ruby"
+
+      out, err, status = Open3.capture3(
+        { "GEM_HOME" => home, "GEM_PATH" => "#{home}#{File::PATH_SEPARATOR}#{bundle_gems}" },
+        File.join(home, "bin", "crap4ruby"), "--version", chdir: dir
+      )
+      assert status.success?, "installed exe --version failed: #{err}"
+      assert_equal "crap4ruby #{Crap4Ruby::VERSION}\n", out
     end
   end
 end

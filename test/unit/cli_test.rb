@@ -10,6 +10,36 @@ class CLITest < Minitest::Test
     assert_includes out.string, "Usage: crap4ruby"
   end
 
+  def test_version_prints_name_and_version_outside_a_project_and_exits_0
+    with_sandbox do |root|
+      out = StringIO.new
+      assert_equal 0, run_cli(["--version"], cwd: root, stdout: out)
+      assert_equal "crap4ruby #{Crap4Ruby::VERSION}\n", out.string
+    end
+  end
+
+  def test_first_short_circuit_flag_wins
+    out = StringIO.new
+    assert_equal 0, run_cli(["--version", "--help"], stdout: out)
+    assert_equal "crap4ruby #{Crap4Ruby::VERSION}\n", out.string
+
+    out = StringIO.new
+    assert_equal 0, run_cli(["--help", "--version"], stdout: out)
+    assert_includes out.string, "Usage: crap4ruby"
+  end
+
+  def test_version_with_unknown_option_is_a_usage_error
+    err = StringIO.new
+    assert_equal 1, run_cli(["--version", "--bogus"], stderr: err)
+    assert_includes err.string, "unknown option: --bogus"
+  end
+
+  def test_short_v_is_not_an_alias
+    err = StringIO.new
+    assert_equal 1, run_cli(["-v"], stderr: err)
+    assert_includes err.string, "unknown option: -v"
+  end
+
   def test_unknown_option_is_a_usage_error
     err = StringIO.new
     assert_equal 1, run_cli(["--bogus"], stderr: err)
