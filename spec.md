@@ -53,6 +53,12 @@ CRAP(m) = comp(m)² × (1 − cov(m))³ + comp(m)
 | `crap4ruby --test-command "<cmd>"` | run `<cmd>` under `simplecov run` instead of the detected test command |
 | `crap4ruby --coverage-file <path>` | read the coverage report from `<path>` instead of `<project root>/coverage/coverage.json` |
 | `crap4ruby --help` | print usage, exit 0 |
+| `crap4ruby --version` | print exactly `crap4ruby <version>` and a newline to stdout, exit 0 |
+
+**`--help` and `--version`** short-circuit before project location, so they
+work outside a project. When both appear, the first one on the command line
+wins. Unknown options remain usage errors even alongside a short-circuit
+flag. `--version` has no `-v` alias.
 
 **`--changed`** parses `git status --porcelain=v1 -z --untracked-files=all`
 (NUL-delimited — robust to unusual filenames; `--untracked-files=all` so new
