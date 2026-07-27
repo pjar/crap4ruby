@@ -86,7 +86,7 @@ error (§11.1); an engaged baseline changes the empty-selection rule
 |---|---|
 | 0 | OK — no method above threshold (including "nothing to analyze"; v2: or every offender grandfathered by an engaged baseline §11.3, or a successful `--update-baseline` run §11.4) |
 | 1 | CLI usage error (also: no Gemfile, ambiguous/unavailable test runner) |
-| 2 | CRAP threshold exceeded (v2: or new/worsened offenders against an engaged baseline, §11.3) |
+| 2 | CRAP threshold exceeded (v2: or new/worsened offenders against an engaged baseline §11.3, or an `--update-baseline` write refused by the shrink rule §11.4) |
 | 3 | coverage unavailable or invalid (missing/malformed report, schema mismatch, criteria disabled, stale, analyzed file absent or unparseable, ambiguous same-line definitions, cleanup failure; v2: also a malformed, stale, or metric-mismatched baseline, §11) |
 | 4 | test command ran and failed |
 
@@ -438,6 +438,8 @@ Billing::Invoice#finalize!                 4    100.0     4.00  app/models/billi
   (v2: with an engaged baseline, §11.3's classification replaces this
   plain max comparison; its diagnostics and exit precedence apply.)
 - No rows (nothing to analyze): print `nothing to analyze`, exit 0.
+  (v2: under an engaged baseline, §11.3/§11.4 govern — in-scope stale
+  rows still exit 3.)
 
 ## 9. Conformance fixtures
 
@@ -503,7 +505,10 @@ freshness scope unchecked); `update_refuses_partial_selection` → 1;
 → 0; `update_writes_empty_rows` → 0; `coverage_file_aliases_baseline`
 → 1; `duplicate_row_key_under_ratchet` → 3;
 `empty_full_selection_stales_all` → 3 (and → 0 with `rows: []`);
-`update_initial_creation_rejects_invalid_rows` → 3. The no-baseline byte-for-byte
+`update_initial_creation_rejects_invalid_rows` → 3;
+`changed_dir_composition_keeps_unchanged_offender` (an unchanged,
+still-failing grandfathered row under `--changed <dir>` is NOT stale);
+`changed_empty_selection_deletion_goes_stale` → 3. The no-baseline byte-for-byte
 guarantee (§11.1) is pinned NOW by exact-output integration tests
 (`test/integration/pipeline_test.rb`), the only executable artifact that
 lands with the spec revision itself.
@@ -525,8 +530,11 @@ and §11.1's guarantee pins that. Conformance profiles: *v1* = §§1–10;
 ### 11.1 Engagement and the no-baseline guarantee
 
 Ratchet mode engages exactly when `<project root>/crap4ruby-baseline.json`
-exists. No flag enables it: the committed file is the opt-in, and its
-diffs — creation, shrinkage, deletion — are ordinary reviewable commits.
+exists **as a regular file**; a symlink or other non-regular file at
+that path neither engages nor is ignored — it is refused, exit 3
+(§11.2). No flag enables ratchet mode: the committed file is the
+opt-in, and its diffs — creation, shrinkage, deletion — are ordinary
+reviewable commits.
 
 When the file is absent, every invocation **not using
 `--update-baseline`** behaves **byte-for-byte identically** to a build
@@ -539,9 +547,12 @@ trusted, reviewable **policy input**, not tamper-proof enforcement:
 deleting or hand-editing it is visible in review, and review is the
 enforcement boundary.
 
-Resolving `--coverage-file` to the baseline path is a usage error
-(exit 1), checked before any cleanup — §4.1's cleanup step must never be
-able to delete the baseline.
+With an engaged baseline, or whenever `--update-baseline` is given,
+resolving `--coverage-file` to the baseline path is a usage error
+(exit 1), checked before any cleanup — §4.1's cleanup step must never
+be able to delete the baseline. With no baseline present and no
+`--update-baseline`, the invocation behaves as plain v1 per the
+guarantee above.
 
 ### 11.2 Baseline file
 
@@ -593,7 +604,10 @@ that has a successor; no trailing spaces; an empty array prints as
 `[]` on the member's line; top-level keys in the order `schema_version`,
 `metric_version`, `rows`; row keys in the order `path`, `identity`,
 `line`, `comp`, `units`, `hits`, `called`; rows sorted by
-`(path, line, identity)` with byte-wise string comparison; strings
+`(path, line, identity)` with byte-wise string comparison; closing
+`]`/`}` on their own line at the parent's indentation (standard
+pretty-print); integers rendered as plain decimal digit runs (no sign,
+no exponent, no leading zeros); booleans as `true`/`false`; strings
 escaped per RFC 8259 using exactly the short escapes `\"` `\\` `\b`
 `\f` `\n` `\r` `\t`, `\u00XX` (lowercase hex) for other control
 characters, and all other characters emitted verbatim as UTF-8; one
@@ -619,17 +633,25 @@ Staleness is checked against a **freshness scope**, defined exactly:
 - A **full run** (default selection; no `--changed`, no explicit paths)
   freshness-checks *every* baseline row, including rows whose `path` no
   longer exists — deleted and renamed files go stale loudly.
-- A **partial run** (`--changed` or explicit paths): the scope is the
-  union of (a) the analyzed files' paths; (b) for each explicit
-  **directory** argument, every baseline row `path` under that directory
-  — whether or not the file still exists; (c) for `--changed`, every
-  deleted path and rename origin reported by git. (An explicit *file*
-  argument that does not exist is already a usage error, §3.) Rows
-  outside the scope are not checked — so **changed-only CI cannot
-  establish baseline freshness, nor see worsening outside the analyzed
-  set** (a test-only change can reduce an unchanged method's coverage
-  without the ratchet examining it); an authoritative full run is
-  required for both.
+- A **partial run without `--changed`** (explicit paths only): the scope
+  is the analyzed files' paths plus, for each explicit **directory**
+  argument, every baseline row `path` under that directory — whether or
+  not the file still exists. This is sound because every existing `.rb`
+  under such a directory *is* analyzed, so an in-scope row with no
+  reported match is genuinely gone, moved, or passing. (An explicit
+  *file* argument that does not exist is already a usage error, §3.)
+- A **`--changed` run** (alone or composed with explicit paths): the
+  scope is the analyzed files' paths plus every git-reported deleted
+  path and rename origin (restricted to the explicit paths when
+  composed) — and nothing else. An unchanged, unanalyzed file is
+  **never** freshness-checked, so its grandfathered rows cannot go
+  falsely stale under the §3 intersection semantics.
+
+Rows outside the scope are not checked — so **changed-only CI cannot
+establish baseline freshness, nor see worsening outside the analyzed
+set** (a test-only change can reduce an unchanged method's coverage
+without the ratchet examining it); an authoritative full run is
+required for both.
 
 A baseline row is **stale** when, within the freshness scope, it no
 longer corresponds to a failing row: its file is gone, no reported row
@@ -637,10 +659,11 @@ carries its key, or the row at its key no longer exceeds the threshold.
 
 Diagnostics: after the report, every finding prints to stderr, one line
 per row, sorted `(path, line, identity)`. In these lines `<path>` and
-`<identity>` are rendered with control bytes escaped (`\n`, `\r`, `\t`;
-other bytes below 0x20 as `\xNN`) so a hostile filename cannot break the
-one-line format; all other characters print verbatim. `<2dp>` is §8's
-half-up two-decimal rendering:
+`<identity>` are rendered with a literal backslash escaped as `\\` and
+control bytes escaped (`\n`, `\r`, `\t`; other bytes below 0x20 as
+`\xNN`, lowercase hex) so a hostile filename cannot break the one-line
+format; all other characters print verbatim. `<2dp>` is §8's half-up
+two-decimal rendering:
 
 ```
 baseline: new offender <identity> (<path>:<line>) CRAP <2dp>
@@ -684,18 +707,25 @@ metric-mismatched existing file is not "initial creation": exit 3.
 
 A successful update exits **0** even though failing rows exist — the
 requested outcome is the write; the gate question belongs to the next
-ordinary run. An empty result set writes `"rows": []` (an active ratchet
-at zero debt; delete the file to disengage).
+ordinary run. It prints no confirmation of its own: the run's report
+table is the only stdout, and stderr stays empty on success. An empty
+result set writes `"rows": []` (an active ratchet at zero debt; delete
+the file to disengage).
 
-Empty selection under an engaged baseline: an ordinary **full** run
-still validates the baseline, prints `nothing to analyze` to stdout,
-and — when `rows` is non-empty — every row is stale: the §11.3 stale
-diagnostics print to stderr and the run exits 3 (`rows: []` exits 0).
-`--update-baseline` with an empty full selection writes the empty
-baseline, exit 0. An empty *partial* selection validates static
-structure only (no freshness scope), prints `nothing to analyze`,
-exit 0. Without a baseline, §3's early return is byte-for-byte
-unchanged.
+Empty selection under an engaged baseline: the run still validates the
+baseline **and applies its §11.3 freshness scope** — staleness needs no
+analysis, only the baseline and (for `--changed`) git status. An
+ordinary run prints `nothing to analyze` to stdout, then exits 3 with
+the stale diagnostics on stderr when any in-scope row is stale, else 0.
+Consequently: an empty full selection with non-empty `rows` stales
+everything (scope = every row); an empty `--changed` selection still
+carries git-reported deletions and rename origins, so deleting a
+baselined file goes stale even when nothing else changed — §11.3's
+deletion clause is live in exactly its motivating scenario; an empty
+explicit-directory selection sweeps that directory's rows. An empty
+scope exits 0. `--update-baseline` with an empty full selection prints
+`nothing to analyze` and writes the empty baseline, exit 0. Without a
+baseline, §3's early return is byte-for-byte unchanged.
 
 ### 11.5 Row keys and accepted brittleness
 
