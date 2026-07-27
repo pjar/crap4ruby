@@ -457,7 +457,10 @@ loop-dynamic `define_method`, both ignore-marker forms), `mixed_forms`
 conditional parameter defaults), `span_matching` (span-only invocation
 matching for anon-class and `class << obj` methods against real runtime
 names, the any-called rule for a loop-dynamic `define_method`, and the
-two §7.4 exclusion clauses firing separately). The harness resolves `meta.root` against
+two §7.4 exclusion clauses firing separately), `runtime_scope_fallbacks`
+(the two §7.2 scope fallbacks: a called empty top-level `def` reported as
+`Object#…` and a called zero-unit constant-receiver `def` reported under
+its runtime class, both scoring cov 1.0 and CRAP = comp per §7.3). The harness resolves `meta.root` against
 the case directory, attributes coverage per §7, and asserts rows and
 exclusions exactly. These cases exercise §7 only; pipeline behavior (§4) is
 tested by integration tests, not fixtures.
