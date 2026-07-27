@@ -55,7 +55,9 @@ Node handling:
 
 - `visit_def_node`: build identity (receiver analysis per §5), record span =
   node start/end lines, declaration line = `def` keyword line, comp starts
-  at 1; visit parameters (defaults count into this context — §6) and body.
+  at 1; the receiver expression is visited in the *enclosing* context first
+  (it is evaluated when the `def` statement runs — §6), then parameters
+  (defaults count into this context — §6) and body.
 - `define_method` / `define_singleton_method` `CallNode`s: receiver and
   argument expressions are visited in the *enclosing* context first; then,
   if the body is statically visible (block, or literal lambda as positional

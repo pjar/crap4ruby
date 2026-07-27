@@ -97,3 +97,22 @@ class << helper
     :s
   end
 end
+
+class Receivers
+  # The def-receiver expression evaluates when the def statement runs:
+  # its &. counts in the enclosing method (§6); line/branch ownership
+  # stays span-based (§7.0).
+  # cc: 2 id: Receivers#outer
+  def outer(target)
+    # cc: 1 id: Receivers::(singleton@108).name
+    def (target&.thing).name
+    end
+  end
+
+  # Defaults execute at invocation time: the ternary counts in the
+  # method's own scope, not the class body.
+  # cc: 2 id: Receivers#defaulted
+  def defaulted(x = (@flag ? 1 : 2))
+    x
+  end
+end

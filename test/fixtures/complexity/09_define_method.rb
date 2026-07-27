@@ -33,3 +33,38 @@ class Definers
   # no-row
   class_eval "def evaled; 1; end"
 end
+
+class Q
+  class << self
+    # cc: 1 id: Q.from_singleton
+    define_method(:from_singleton) { :s }
+
+    [1].each do
+      # Transparent blocks push no scope entry: singleton context holds.
+      # cc: 1 id: Q.from_block
+      define_method(:from_block) { :b }
+    end
+
+    # A def switches the counting context but pushes no identity scope,
+    # so lexically this is still class << self: the separator stays a dot
+    # (contrast fixture 10, where define_method inside def self.install
+    # reports with #).
+    # cc: 1 id: Q.install
+    def install
+      # cc: 1 id: Q.added
+      define_method(:added) { :a }
+    end
+
+    class Inner
+      # A nested class scope resets to instance context.
+      # cc: 1 id: Q::Inner#from_inner
+      define_method(:from_inner) { :i }
+    end
+  end
+end
+
+obj = Object.new
+class << obj
+  # cc: 1 id: (singleton@67).from_expr
+  define_method(:from_expr) { :e }
+end
