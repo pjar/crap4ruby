@@ -41,6 +41,25 @@ class PackagingIntegrationTest < Minitest::Test
     end
   end
 
+  # The tree can sit untracked inside an unrelated repository: `git ls-files`
+  # then succeeds with an empty listing, which must mean "no listing", not
+  # "ship nothing" — the glob fallback packages the full set.
+  def test_build_from_untracked_copy_in_a_foreign_repository_packages_the_full_set
+    Dir.mktmpdir("crap4ruby-foreign") do |dir|
+      git(dir, "init", "-q")
+      copy_tracked_tree(dir)
+      gem_path = File.join(dir, "crap4ruby.gem")
+      _out, err, status = Open3.capture3("gem", "build", "crap4ruby.gemspec",
+                                         "--output", gem_path, chdir: dir)
+      assert status.success?, "gem build failed: #{err}"
+
+      expected = Dir.glob("lib/**/*.rb", base: ROOT).sort +
+                 %w[CHANGELOG.md LICENSE README.md exe/crap4ruby spec.md]
+      assert_equal expected.sort, Gem::Package.new(gem_path).contents.sort,
+                   "an empty git listing must fall back to the plain globs"
+    end
+  end
+
   private
 
   def copy_tracked_tree(dir)

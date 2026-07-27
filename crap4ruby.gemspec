@@ -19,11 +19,12 @@ Gem::Specification.new do |spec|
   }
 
   # Git-scoped so an untracked stray file can never ship; the plain globs
-  # remain the fallback when git is unavailable at build time.
+  # remain the fallback when git is unavailable at build time or lists
+  # nothing (the tree sitting untracked inside an unrelated repository).
   candidates = Dir.glob(["lib/**/*.rb", "exe/*", "spec.md", "README.md", "CHANGELOG.md", "LICENSE"], base: __dir__)
   tracked = begin
     listed = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL, &:read).split("\x0")
-    $?.success? ? listed : nil
+    $?.success? && !listed.empty? ? listed : nil
   rescue SystemCallError
     nil
   end
