@@ -2,8 +2,13 @@ module Crap4Ruby
   # One Prism parse + one visit per file: reportable methods (spec §5) with
   # their cyclomatic complexity (spec §6).
   class MethodExtractor
+    # §2: analyzed files parse as Ruby 4.0 grammar — spec-owned, so a prism
+    # upgrade cannot silently change which files parse. Bumps are explicit
+    # spec revisions with boundary fixtures.
+    GRAMMAR_VERSION = "4.0".freeze
+
     def self.extract(source, description = "source")
-      result = Prism.parse(source)
+      result = Prism.parse(source, version: GRAMMAR_VERSION)
       if result.failure?
         error = result.errors.first
         raise Failure.new("cannot parse #{description}: #{error.message} (line #{error.location.start_line})", 3)
