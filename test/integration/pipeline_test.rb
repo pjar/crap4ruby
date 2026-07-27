@@ -84,6 +84,32 @@ class PipelineIntegrationTest < Minitest::Test
     end
   end
 
+  # §11.1 (v2 baseline ratchet): with no baseline file, behavior is
+  # byte-for-byte identical to v1. These pins freeze that guarantee before
+  # any implementation exists — a future ratchet ticket must keep them
+  # green untouched. The child suite's own output goes to the process
+  # streams, not the injected IO, so the captured bytes are deterministic.
+  def test_no_baseline_passing_run_output_is_byte_frozen
+    with_project do |root|
+      out, err, code = run_cli([], root)
+      assert_equal "Method      CC    Cov%      CRAP  Location\n" \
+                   "Calc#sign    2   100.0      2.00  lib/calc.rb:2\n", out
+      assert_equal "", err
+      assert_equal 0, code
+    end
+  end
+
+  def test_no_baseline_failing_run_output_is_byte_frozen
+    with_project(extra_lib: { "lib/mess.rb" => MESS }) do |root|
+      out, err, code = run_cli([], root)
+      assert_equal "Method        CC    Cov%      CRAP  Location\n" \
+                   "Mess#tangle    3     0.0     12.00  lib/mess.rb:2\n" \
+                   "Calc#sign      2   100.0      2.00  lib/calc.rb:2\n", out
+      assert_equal "CRAP threshold exceeded: 12.00 > 8.0\n", err
+      assert_equal 2, code
+    end
+  end
+
   def test_failing_suite_stops_scoring_with_exit_4
     failing = CALC_TEST.sub("assert_equal :pos, Calc.new.sign(3)", "flunk")
     with_project(test_body: failing) do |root|
