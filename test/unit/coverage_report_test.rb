@@ -159,6 +159,21 @@ class CoverageReportTest < Minitest::Test
     end
   end
 
+  def test_invalid_utf8_analyzed_file_fails_with_exit_3
+    with_sandbox do |root|
+      file = File.join(root, "lib/a.rb")
+      FileUtils.mkdir_p(File.dirname(file))
+      File.binwrite(file, "class A\n  def x = 1\nend\n\xE9\n")
+      data = valid_report
+      entry(data)["lines"] = []
+      path = write_report(root, data)
+      error = assert_failure(3, "not valid UTF-8") do
+        Crap4Ruby::CoverageReport.load(path, analyzed_files: [file])
+      end
+      assert_includes error.message, "a.rb"
+    end
+  end
+
   private
 
   def valid_report

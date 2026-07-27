@@ -176,6 +176,8 @@ Failures here are exit 3, before any scoring.
   An analyzed file missing from the report is exit 3 (likely an unloaded
   file without a `cover` pattern, or a SimpleCov filter), never implicit
   zero coverage.
+- Every analyzed file's bytes must decode as UTF-8; an undecodable file
+  fails here (exit 3), never as an unhandled error downstream.
 
 ## 5. Method identity and reportability
 

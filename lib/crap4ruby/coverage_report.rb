@@ -105,7 +105,12 @@ module Crap4Ruby
       raise Failure.new("analyzed file absent: #{file}", 3) unless File.file?(file)
       # Explicit UTF-8, matching the analyzed-file reads in CLI (no-locale
       # environments default to US-ASCII and would raise on multibyte).
-      line_count = self.class.logical_lines(File.read(file, encoding: Encoding::UTF_8)).size
+      content = File.read(file, encoding: Encoding::UTF_8)
+      # Every analyzed file passes through here in both modes, so this is
+      # the single boundary where undecodable input maps to exit 3 instead
+      # of an unhandled encoding error downstream.
+      raise Failure.new("analyzed file is not valid UTF-8: #{file}", 3) unless content.valid_encoding?
+      line_count = self.class.logical_lines(content).size
 
       lines = entry["lines"]
       invalid "#{file}: lines is not an array" unless lines.is_a?(Array)

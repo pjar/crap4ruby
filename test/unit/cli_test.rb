@@ -96,6 +96,30 @@ class CLITest < Minitest::Test
     end
   end
 
+  def test_no_run_with_invalid_utf8_analyzed_file_exits_3
+    with_sandbox do |root|
+      write_file(root, "Gemfile")
+      write_file(root, ".gitignore", "coverage/\n")
+      file = File.join(root, "lib/a.rb")
+      FileUtils.mkdir_p(File.dirname(file))
+      File.binwrite(file, "class A\nend\n\xE9\n")
+      git(root, "init", "-q")
+      git(root, "add", "-A")
+      git(root, "commit", "-qm", "init")
+      head = Crap4Ruby::Project.locate(root).head_sha
+      report = {
+        "meta" => { "schema_version" => "1.0", "timestamp" => "2026-07-27T00:00:00+02:00",
+                    "root" => root, "commit" => head, "line_coverage" => true,
+                    "branch_coverage" => true, "method_coverage" => true },
+        "coverage" => { "lib/a.rb" => { "lines" => [], "branches" => [], "methods" => [] } }
+      }
+      write_file(root, "coverage/coverage.json", JSON.generate(report))
+      err = StringIO.new
+      assert_equal 3, run_cli(["--no-run", "lib/a.rb"], cwd: root, stderr: err)
+      assert_includes err.string, "not valid UTF-8"
+    end
+  end
+
   def test_unparseable_file_failure_names_the_file
     with_sandbox do |root|
       write_file(root, "Gemfile")
