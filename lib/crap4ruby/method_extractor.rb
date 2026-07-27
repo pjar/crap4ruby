@@ -33,7 +33,9 @@ module Crap4Ruby
     ].freeze
 
     # §5: `define_method` reports instance methods, `define_singleton_method`
-    # singleton ones — the value is the identity separator.
+    # singleton ones — the value is the default identity separator. In
+    # lexical singleton scope (`class << …`) define_method creates singleton
+    # methods, so the separator becomes a dot there, as for a sibling def.
     DEFINERS = { define_method: "#", define_singleton_method: "." }.freeze
 
     # §5: blocks passed to these constructors are anonymous class/module
@@ -87,6 +89,10 @@ module Crap4Ruby
       def visit_def_node(node)
         info = build_def(node)
         @methods << info
+        # §6: the receiver expression belongs to the current counting
+        # context — it is evaluated when the def statement runs, like
+        # define_method receivers. In a class body the +1s are discarded.
+        visit(node.receiver)
         @contexts.push(info)
         visit(node.parameters) # §6: defaults execute at invocation time
         visit(node.body)
@@ -178,8 +184,9 @@ module Crap4Ruby
         # §5: a dynamic name is reported once per call site, not per runtime
         # method the surrounding code creates.
         bare = literal || "#{node.name}@#{line}"
+        separator = singleton_scope? ? "." : DEFINERS.fetch(node.name)
         MethodInfo.new(
-          identity: "#{scope}#{DEFINERS.fetch(node.name)}#{bare}",
+          identity: "#{scope}#{separator}#{bare}",
           scope: scope,
           bare_name: bare,
           definition_line: line,

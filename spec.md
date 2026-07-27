@@ -196,7 +196,11 @@ A **reportable method** is:
 Identity format:
 
 - Instance methods: `Scope#name`. Singleton methods: `Scope.name` — from
-  `def self.x`, `def` inside `class << self`, or `define_singleton_method`.
+  `def self.x`, `define_singleton_method`, or a `def` or `define_method` in
+  **lexical singleton scope**: the innermost enclosing identity scope at
+  the definition site is a `class << …` body. Ordinary blocks and enclosing
+  `def`s are transparent and preserve singleton context; a nested `class`/
+  `module`/anonymous-constructor body resets to instance context.
 - `def <receiver>.name` with a **constant** receiver: `<Receiver>.name`
   exactly as written (`def Widget.reset` → `Widget.reset`). With any other
   non-`self` receiver: `Scope::(singleton@<line>).name` where `<line>` is
@@ -265,8 +269,16 @@ Explicitly **free** (+0): `else`, `ensure`, `begin`, `case`/`case-in` shells,
 **Scope boundaries.** `DefNode`, `ClassNode`, `ModuleNode`,
 `SingletonClassNode`, and the statically visible body of a reportable
 `define_method` / `define_singleton_method` each start a *new* counting
-scope. Nothing inside them contributes to the enclosing method's complexity,
-and a nested `def` produces its own row (§5). For a `define_method` call
+scope, and a nested `def` produces its own row (§5). For a `DefNode` the
+boundary encloses its parameters and body — parameter defaults count in
+the defined method because they execute at invocation time — but **not**
+its receiver expression: the receiver belongs to the *current* counting
+context, because it is evaluated when the `def` statement runs
+(`def (target&.thing).name` inside a method adds the `&.`'s +1 to that
+method; in a class body, with no enclosing method, the +1 is discarded).
+This is a complexity rule only — §7's line/branch ownership stays
+span-based, so a multi-line receiver's units remain owned by the defined
+method (§7.0). For a `define_method` call
 inside a method, **only the body block/lambda is excluded** — the receiver
 and argument expressions execute in the enclosing method and count normally
 (`define_method(flag ? :on : :off) do … end` adds the ternary's +1 to the
@@ -287,7 +299,11 @@ Every line and branch arm belongs to **at most one method: the innermost
 reportable span containing it**. Lines and arms inside a nested reportable
 definition never count toward the enclosing method (mirroring §6's scope
 boundaries — otherwise tests of a nested `def` would inflate the outer
-method's coverage). Nesting is decided by node containment (byte extent),
+method's coverage). One deliberate asymmetry: a `def` receiver expression
+counts toward the enclosing method's *complexity* (§6), while its lines
+and branch arms — lying inside the `def` span — stay owned by the defined
+method; ownership is purely span-based.
+Nesting is decided by node containment (byte extent),
 not line numbers — `def outer; def inner; 1; end; end` is a nesting, not a
 sibling pair. If a relevant line or branch arm lies on a line shared by two
 or more **sibling** (non-nested) reportable spans, analysis fails with
