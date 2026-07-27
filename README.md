@@ -149,5 +149,15 @@ devenv shell -- bundle exec rake test   # conformance + unit + integration
 devenv test                             # what CI runs
 ```
 
+The CRuby 3.3 floor check CI runs can also be run locally (the lsp
+override is required — the default language server does not build under
+3.3 on the current pin):
+
+```
+devenv shell --option languages.ruby.lsp.enable:bool false \
+  --option languages.ruby.version:string "3.3.9" \
+  -- bash -c 'ruby -v && (bundle check || bundle install) && bundle exec rake test'
+```
+
 The Prism pin, upgrade policy, and where score determinism actually comes
 from are documented in DESIGN.md §8.
