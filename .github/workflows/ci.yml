@@ -3,10 +3,10 @@
 # invocation is deliberate (see AGENTS.md); do not simplify it to
 # bare-PATH ruby/bundle/rake steps.
 #
-# devenv.lock is intentionally untracked (the Owner's global gitignore
-# excludes it; whether to commit it for reproducible CI is an open Owner
-# decision, board ticket CRA-33), so devenv input resolution floats on
-# every fresh run.
+# devenv.lock is committed (Owner decision, board ticket CRA-33) so CI
+# resolves the same devenv inputs as the reviewed local environment: a
+# required-CI failure means the repository regressed, not that rolling
+# nixpkgs moved. Refresh deliberately via `devenv update` + commit.
 name: CI
 
 on:
