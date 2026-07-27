@@ -14,7 +14,8 @@ module Crap4Ruby
     end
 
     # The flat +1 table of §6. WhenNode (+1 per condition), `&.` calls,
-    # definer calls and anonymous-scope calls need their own handlers.
+    # the safe-navigation lvalue forms, definer calls and anonymous-scope
+    # calls need their own handlers.
     COUNTED = %i[
       if_node unless_node
       while_node until_node for_node
@@ -25,12 +26,24 @@ module Crap4Ruby
       local_variable_or_write_node instance_variable_or_write_node
       class_variable_or_write_node global_variable_or_write_node
       constant_or_write_node constant_path_or_write_node
-      call_or_write_node index_or_write_node
+      index_or_write_node
       local_variable_and_write_node instance_variable_and_write_node
       class_variable_and_write_node global_variable_and_write_node
       constant_and_write_node constant_path_and_write_node
-      call_and_write_node index_and_write_node
+      index_and_write_node
     ].freeze
+
+    # §6: Prism fuses assignment targets into call-write/target nodes that
+    # keep the receiver's safe-navigation flag. Rows are additive — the
+    # value is the node's own-row contribution (+1 for ||=/&&=; operator-
+    # writes and targets are free as their own operation), and
+    # `safe_navigation?` adds one more (CRA-8 decision B).
+    SAFE_NAVIGATION_LVALUES = {
+      call_or_write_node: 1,
+      call_and_write_node: 1,
+      call_operator_write_node: 0,
+      call_target_node: 0
+    }.freeze
 
     # §5: `define_method` reports instance methods, `define_singleton_method`
     # singleton ones — the value is the identity separator.
@@ -56,6 +69,13 @@ module Crap4Ruby
       COUNTED.each do |type|
         define_method("visit_#{type}") do |node|
           bump
+          super(node)
+        end
+      end
+
+      SAFE_NAVIGATION_LVALUES.each do |type, base|
+        define_method("visit_#{type}") do |node|
+          bump(base + (node.safe_navigation? ? 1 : 0))
           super(node)
         end
       end

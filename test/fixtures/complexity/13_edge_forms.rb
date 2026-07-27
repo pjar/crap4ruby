@@ -27,9 +27,9 @@ class Guards
       a :
       b
 
-  # The &. flag on an or-write receiver adds nothing under the §6 table
-  # (CallOrWriteNode only) — pending Owner decision CRA-8.
-  # cc: 2 id: Guards#toggle_default
+  # Assignment fusion keeps the &. flag on the or-write node: the ||= row
+  # and the &. row both match (CRA-8 decision B, implemented by CRA-42).
+  # cc: 3 id: Guards#toggle_default
   def toggle_default(a)
     a&.b ||= 1
   end
