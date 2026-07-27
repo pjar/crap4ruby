@@ -14,10 +14,13 @@ module Crap4Ruby
   # match_mode — :name_and_span for statically named methods,
   #   :span_only for @line pseudo-methods and (anon@…)/(singleton@…)
   #   identities (§7.2).
+  # constant_receiver — true for `def <Constant>.name`; the entry scope
+  #   reflects runtime constant resolution rather than the receiver as
+  #   written, so §7.2 matches these by span and bare name alone.
   MethodInfo = Struct.new(
     :identity, :scope, :bare_name, :definition_line,
     :span_start, :span_end, :span_byte_start, :span_byte_end,
-    :declaration_lines, :comp, :match_mode,
+    :declaration_lines, :comp, :match_mode, :constant_receiver,
     keyword_init: true
   ) do
     def span_contains?(line)

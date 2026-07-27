@@ -98,6 +98,69 @@ class AttributionTest < Minitest::Test
     assert_empty result.rows
   end
 
+  def test_called_empty_toplevel_def_scores_cov_one_via_object_scope_fallback
+    source = "def helper\nend\n"
+    entry = {
+      "lines" => [1, nil],
+      "branches" => [],
+      "methods" => [{ "name" => "Object#helper", "start_line" => 1, "end_line" => 2, "coverage" => 2 }]
+    }
+    row = attribute(source, entry).rows.fetch(0)
+    assert_equal "#helper", row.method.identity
+    assert_equal 0, row.units
+    assert_equal Rational(1), row.cov
+    assert_equal Rational(1), row.crap
+  end
+
+  def test_called_constant_receiver_def_matches_by_span_and_name_when_scopes_differ
+    source = "module Outer\n  class Widget; end\n  def Widget.reset = :r\nend\n"
+    entry = {
+      "lines" => [1, 1, 1, nil],
+      "branches" => [],
+      "methods" => [{ "name" => "Outer::Widget#reset", "start_line" => 3, "end_line" => 3, "coverage" => 1 }]
+    }
+    row = attribute(source, entry).rows.fetch(0)
+    assert_equal "Widget.reset", row.method.identity
+    assert_equal 0, row.units
+    assert_equal Rational(1), row.cov
+    assert_equal Rational(1), row.crap
+  end
+
+  def test_object_scope_fallback_does_not_apply_to_scoped_methods
+    source = "class V\n  def maybe = :x\nend\n"
+    entry = {
+      "lines" => [1, 1, nil],
+      "branches" => [],
+      "methods" => [{ "name" => "Object#maybe", "start_line" => 2, "end_line" => 2, "coverage" => 5 }]
+    }
+    assert_equal Rational(0), attribute(source, entry).rows.fetch(0).cov
+  end
+
+  def test_scope_mismatch_without_constant_receiver_still_means_not_called
+    source = "class V\n  def maybe = :x\nend\n"
+    entry = {
+      "lines" => [1, 1, nil],
+      "branches" => [],
+      "methods" => [{ "name" => "Other#maybe", "start_line" => 2, "end_line" => 2, "coverage" => 5 }]
+    }
+    assert_equal Rational(0), attribute(source, entry).rows.fetch(0).cov
+  end
+
+  def test_same_line_constant_receiver_siblings_join_invocation_bits_by_name
+    source = "module Outer\n  class Widget; end\n  def Widget.reset = :r; def Widget.other = :o\nend\n"
+    entry = {
+      "lines" => [1, 1, 1, nil],
+      "branches" => [],
+      "methods" => [
+        { "name" => "Outer::Widget#reset", "start_line" => 3, "end_line" => 3, "coverage" => 1 },
+        { "name" => "Outer::Widget#other", "start_line" => 3, "end_line" => 3, "coverage" => 0 }
+      ]
+    }
+    rows = attribute(source, entry).rows.to_h { |r| [r.method.identity, r] }
+    assert_equal Rational(1), rows.fetch("Widget.reset").cov
+    assert_equal Rational(0), rows.fetch("Widget.other").cov
+  end
+
   private
 
   def attribute(source, entry)

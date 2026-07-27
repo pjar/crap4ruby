@@ -216,6 +216,12 @@ Identity format:
 - Rows are unique by **(file path, identity, definition line)**. Two
   definitions of the same name produce two rows.
 
+Identity is lexical — recorded exactly as written, never resolved through
+the runtime. Where SimpleCov's runtime naming diverges from it (a top-level
+`def` reports under `Object`; a constant receiver reports under the class
+the constant resolved to), the divergence is handled at matching time
+(§7.2), not in the identity.
+
 Not reportable (no row, ever): `attr_reader` / `attr_writer` /
 `attr_accessor`, `alias` / `alias_method`, `class_eval` / `module_eval` /
 `instance_eval` with string arguments, and `define_method` /
@@ -327,6 +333,17 @@ the name:
 
 - A method with a static name matches the entry whose parsed scope and bare
   name equal its own **and** whose `(start_line, end_line)` equals its span.
+  Two narrow fallbacks bridge entry scopes that are runtime names rather
+  than lexical ones (§5): an entry scope of `Object` matches an empty
+  extractor scope (a top-level `def` defines an instance method of
+  `Object`), and a `def` with a **constant** receiver (`ConstantReadNode` /
+  `ConstantPathNode`) matches by exact span and bare name even when the
+  scope strings differ (`def Widget.reset` inside `module Outer` reports as
+  `Outer::Widget#reset` — verified empirically). The bare-name requirement
+  stays load-bearing in both fallbacks: zero-unit same-line siblings share
+  a span and are told apart only by name (§7.0). No other form matches on a
+  scope mismatch — strict scope comparison remains the canary for extractor
+  naming defects.
 - A dynamic `define_method@<line>` / `define_singleton_method@<line>`
   pseudo-method matches **every** entry with exactly its body's span
   (several runtime names share one span when defined in a loop): any called

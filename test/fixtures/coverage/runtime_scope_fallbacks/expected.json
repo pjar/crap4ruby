@@ -1,0 +1,7 @@
+{
+  "rows": [
+    { "id": "#toplevel_helper", "cc": 1, "units": 0, "hits": 0, "cov": 1.0, "crap": 1.0 },
+    { "id": "Widget.reset", "cc": 1, "units": 0, "hits": 0, "cov": 1.0, "crap": 1.0 }
+  ],
+  "excluded": []
+}

@@ -153,7 +153,8 @@ module Crap4Ruby
           span_byte_end: node.location.end_offset,
           declaration_lines: [line],
           comp: 1,
-          match_mode: anonymous?(scope) ? :span_only : :name_and_span
+          match_mode: anonymous?(scope) ? :span_only : :name_and_span,
+          constant_receiver: constant_receiver?(node)
         )
       end
 
@@ -164,6 +165,10 @@ module Crap4Ruby
         when Prism::ConstantReadNode, Prism::ConstantPathNode then [node.receiver.slice, "."]
         else [qualify("(singleton@#{line})"), "."]
         end
+      end
+
+      def constant_receiver?(node)
+        node.receiver.is_a?(Prism::ConstantReadNode) || node.receiver.is_a?(Prism::ConstantPathNode)
       end
 
       def build_definer(node, body)

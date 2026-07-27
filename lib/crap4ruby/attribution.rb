@@ -139,9 +139,20 @@ module Crap4Ruby
     def matching_entries(method)
       @entries.select do |entry|
         next false unless entry[:start_line] == method.span_start && entry[:end_line] == method.span_end
-        method.match_mode == :span_only ||
-          (entry[:scope] == method.scope && entry[:name] == method.bare_name)
+        next true if method.match_mode == :span_only
+        entry[:name] == method.bare_name && scope_matches?(entry[:scope], method)
       end
+    end
+
+    # §7.2: entry scopes are runtime names. Two narrow fallbacks bridge the
+    # lexical identity (§5): a top-level def is an Object instance method,
+    # and a constant receiver resolves at runtime (`def Widget.reset` inside
+    # `module Outer` reports as `Outer::Widget`). Everything else compares
+    # scope strictly — a mismatch stays a canary for extractor naming bugs.
+    def scope_matches?(entry_scope, method)
+      entry_scope == method.scope ||
+        (entry_scope == "Object" && method.scope.empty?) ||
+        method.constant_receiver
     end
 
     # §7.2: SimpleCov collapses singleton methods into `Scope#name`, so the
