@@ -30,9 +30,28 @@ escapes only by being simple.
 SimpleCov.configure do
   enable_coverage :branch
   enable_coverage :method
+  merge_subprocesses true # required when tests fork parallel workers (Rails' default)
   cover "app/**/*.rb", "lib/**/*.rb"
 end
 ```
+
+**Why `merge_subprocesses`:** SimpleCov's fork hook is off by default, so a
+suite that forks parallel test workers — Rails parallelizes by default via
+`parallelize` in `test_helper.rb` — silently discards every worker's
+coverage. The merged report then contains only what the parent process
+executed while booting: near-zero coverage from a fully passing suite, and
+wildly high CRAP scores to match. `merge_subprocesses true` makes each
+worker contribute its slice; it is harmless when the suite runs in a single
+process.
+
+**If coverage looks absurdly low** (every method near 0.0%, huge CRAP
+scores despite a green suite), that fork-hook default is almost certainly
+the cause — fix `.simplecov` as above. Do not fall back to a serial run
+instead: with `PARALLEL_WORKERS=1`, SimpleCov 1.0.3 under Minitest 6
+currently produces **no report at all** for `bin/rails test` — a silent
+upstream incompatibility (SimpleCov's exit hook is aborted by Minitest's
+exit-status handshake), after which crap4ruby exits 3 with
+`coverage report not found`.
 
 ## Usage
 
