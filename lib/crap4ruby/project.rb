@@ -4,6 +4,14 @@ require "pathname"
 module Crap4Ruby
   # Project root discovery and file selection (spec §2, §3).
   class Project
+    # One `git status` parse: the .rb paths a --changed run selects, and
+    # the paths git reports as gone (§11.3's freshness scope).
+    Porcelain = Struct.new(:selected, :removed, keyword_init: true)
+
+    # The shape argument_paths returns, and what a run with no explicit
+    # arguments contributes to the §11.3 freshness scope: nothing.
+    NO_ARGUMENTS = { directories: [], files: [], root: false }.freeze
+
     attr_reader :root
 
     # Nearest ancestor of cwd (inclusive) containing a Gemfile.
@@ -41,6 +49,29 @@ module Crap4Ruby
       path
     end
 
+    # §11.3: the explicit arguments as normalized, project-root-relative
+    # paths, split by kind — directory arguments sweep their subtree
+    # lexically, file arguments match exactly. `root` is set when a
+    # directory argument contains the whole project, which the lexical
+    # prefix rule cannot express.
+    #
+    # Sampled alongside file selection, before any test run: a suite that
+    # deletes an explicitly named directory must not be able to demote it
+    # to a "file" in the freshness scope.
+    def argument_paths(paths, cwd:)
+      paths.each_with_object(NO_ARGUMENTS.transform_values(&:dup)) do |path, split|
+        absolute = File.expand_path(path, cwd)
+        next split[:files] << relative(absolute) unless File.directory?(absolute)
+        next split[:root] = true if contains_root?(absolute)
+        split[:directories] << relative(absolute)
+      end
+    end
+
+    # §11.3: paths git reports as gone — deletions and rename origins,
+    # project-root-relative. A copy's origin is still there, so it is not
+    # one of them.
+    def changed_removals = porcelain.removed
+
     def tree_clean?
       run_git("status", "--porcelain=v1", exit_code: 3).empty?
     end
@@ -50,6 +81,18 @@ module Crap4Ruby
     end
 
     private
+
+    # §11.3: a directory argument that is the project root, or an ancestor
+    # of it, contains every row — the prefix rule is degenerate there (no
+    # normalized row path begins with "./" or "../"). A directory the root
+    # cannot be expressed relative to at all (a different volume, where
+    # relative_path_from gives back an absolute path) is treated the same
+    # way: fail loud rather than silently narrow the scope.
+    def contains_root?(absolute)
+      return true if absolute == root
+      return true if root.start_with?(absolute.end_with?("/") ? absolute : "#{absolute}/")
+      File.absolute_path?(relative(absolute))
+    end
 
     def explicit_selection(paths, cwd)
       paths.flat_map do |path|
@@ -72,24 +115,41 @@ module Crap4Ruby
       end
     end
 
+    def changed_files = porcelain.selected
+
+    # One `git status` per run, parsed once and memoized: the selection is
+    # taken before the test suite runs, and the §11.3 freshness scope must
+    # describe that same tree, not whatever the suite left behind.
+    def porcelain
+      @porcelain ||= parse_porcelain
+    end
+
     # git status --porcelain=v1 -z (spec §3): NUL-delimited; rename/copy
-    # entries carry a second token (the origin path), which is skipped —
-    # the destination is selected. Porcelain paths are relative to the
-    # repository toplevel, not the project root.
-    def changed_files
+    # entries carry a second token, the origin path — the destination is
+    # what gets selected, while a *rename's* origin is a path that is gone
+    # (§11.3). Porcelain paths are relative to the repository toplevel,
+    # not the project root.
+    def parse_porcelain
       toplevel = run_git("rev-parse", "--show-toplevel", exit_code: 1).strip
       tokens = run_git("status", "--porcelain=v1", "-z", "--untracked-files=all", exit_code: 1).split("\0")
-      files = []
+      selected = []
+      removed = []
       until tokens.empty?
         entry = tokens.shift
         next if entry.nil? || entry.length < 4
         x, y = entry[0], entry[1]
         path = entry[3..]
-        tokens.shift if x == "R" || x == "C" || y == "R" || y == "C"
+        origin = tokens.shift if renamed_or_copied?(x, y)
+        removed << relative(File.expand_path(origin, toplevel)) if origin && (x == "R" || y == "R")
+        removed << relative(File.expand_path(path, toplevel)) if x == "D" || y == "D"
         next unless selected_status?(x, y) && path.end_with?(".rb")
-        files << File.expand_path(path, toplevel)
+        selected << File.expand_path(path, toplevel)
       end
-      files
+      Porcelain.new(selected: selected, removed: removed)
+    end
+
+    def renamed_or_copied?(x, y)
+      %w[R C].include?(x) || %w[R C].include?(y)
     end
 
     def selected_status?(x, y)

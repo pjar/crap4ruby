@@ -62,6 +62,7 @@ crap4ruby --changed              # only changed .rb files (git)
 crap4ruby --no-run               # trust the existing coverage report
 crap4ruby --test-command "bin/ci" # custom test command under simplecov run
 crap4ruby --coverage-file <path> # non-default report location
+crap4ruby --update-baseline      # rewrite the ratchet baseline (shrink-only)
 ```
 
 Exit codes: `0` ok · `1` usage error · `2` CRAP threshold exceeded ·
@@ -75,6 +76,34 @@ Billing::Invoice#finalize!    4   100.0      4.00  app/models/billing/invoice.rb
 
 When the gate trips, `CRAP threshold exceeded: 8.41 > 8.0` is printed to
 **stderr** and the exit status is 2.
+
+## Adopting it on legacy code — the baseline ratchet
+
+A `crap4ruby-baseline.json` committed in the project root engages the
+ratchet: the offenders it lists are grandfathered, everything else still
+faces the 8.0 gate. No flag turns it on — the committed file *is* the
+opt-in, and its diffs are the audit trail.
+
+```
+crap4ruby --update-baseline   # full run, then rewrite the file
+```
+
+- A **new** offender, or a baselined one that got **worse**, fails: exit 2,
+  one `baseline:` line per row on stderr.
+- A baselined row that no longer fails — fixed, moved, deleted, renamed —
+  is **stale**: exit 3, because the file now lies about the code. Re-run
+  with `--update-baseline` in the same change.
+- The file only ever **shrinks**. `--update-baseline` refuses (exit 2,
+  file untouched) any write that would add or worsen a row; adopting new
+  debt deliberately means deleting the baseline and re-creating it, which
+  shows up as one reviewable diff.
+- Row keys are `(path, identity, line)` — inserting a line above a
+  grandfathered method surfaces as new + stale. That brittleness is the
+  price of exact keys and a strictly shrinking file.
+
+`--changed` runs cannot establish freshness (they only ever check the
+rows they analyzed, plus git's deletions and rename origins), so an
+authoritative full run belongs in CI. The full contract is spec.md §11.
 
 ## The metric, honestly
 

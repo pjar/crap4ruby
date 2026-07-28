@@ -141,7 +141,10 @@ an engaged baseline.
 
 Never deletes or writes anything (v2 exception: `--update-baseline
 --no-run` may write the baseline file — and only it — after every check
-below passes, §11.4). `--no-run` consumes a **trusted artifact**;
+below passes, §11.4; with an **empty selection** no coverage artifact is
+consumed and §11.4's empty-selection semantics govern alone — the checks
+below, which exist to bound trust in the report, do not run).
+`--no-run` consumes a **trusted artifact**;
 these checks bound, but cannot eliminate, that trust (coverage configuration
 or test changes made after the run are detectable only via the tree/commit
 checks below):
@@ -498,8 +501,8 @@ Billing::Invoice#finalize!                 4    100.0     4.00  app/models/billi
 ## 9. Conformance fixtures
 
 The fixture corpus is the executable half of this spec. It covers §§1–10
-(the v1 profile); §9.3 enumerates the corpus planned for §11, which lands
-with the v2 implementation ticket.
+(the v1 profile); §9.3 enumerates the §11 corpus, implemented in
+`test/conformance/ratchet_test.rb`.
 
 ### 9.1 Complexity fixtures — `test/fixtures/complexity/*.rb`
 
@@ -543,10 +546,10 @@ the case directory, attributes coverage per §7, and asserts rows and
 exclusions exactly. These cases exercise §7 only; pipeline behavior (§4) is
 tested by integration tests, not fixtures.
 
-### 9.3 Planned v2 corpus — baseline ratchet (§11)
+### 9.3 v2 corpus — baseline ratchet (§11)
 
-*Plan only; these fixtures land with the §11 implementation ticket, keyed
-to §11's rules. Listed here so the contract and its executable half stay
+*Implemented as `test/conformance/ratchet_test.rb` (CRA-51), keyed to
+§11's rules. Listed here so the contract and its executable half stay
 enumerated together.* Cases: `new_offender` → 2; `worsened_exact` → 2
 (including an exact worsening whose 2-decimal display ties, `8.00 >
 8.00 baselined`); `improved_row` → 0 with an `--update-baseline` shrink
@@ -560,12 +563,11 @@ freshness scope unchecked); `update_refuses_partial_selection` → 1;
 → 1; `duplicate_row_key_under_ratchet` → 3;
 `empty_full_selection_stales_all` → 3 (and → 0 with `rows: []`);
 `update_initial_creation_rejects_invalid_rows` → 3;
-`changed_dir_composition_keeps_unchanged_offender` (an unchanged,
+`changed_dir_composition_keeps_unchanged_offender` → 0 (an unchanged,
 still-failing grandfathered row under `--changed <dir>` is NOT stale);
 `changed_empty_selection_deletion_goes_stale` → 3. The no-baseline byte-for-byte
-guarantee (§11.1) is pinned NOW by exact-output integration tests
-(`test/integration/pipeline_test.rb`), the only executable artifact that
-lands with the spec revision itself.
+guarantee (§11.1) is pinned by exact-output integration tests
+(`test/integration/pipeline_test.rb`).
 
 ## 10. Non-goals (v1)
 
@@ -574,7 +576,7 @@ non-goal — specified for v2 in §11), mutation analysis, non-Bundler
 projects, editor integration, monorepo/engine module grouping,
 Prolog/Datalog rules engine, JRuby/TruffleRuby.
 
-## 11. Baseline ratchet (v2 — specified, not yet implemented)
+## 11. Baseline ratchet (v2)
 
 This section is the normative contract for the v2 baseline ratchet. **v1
 implements §§1–10 only**; a conforming v1 build has no baseline behavior,
@@ -604,7 +606,10 @@ enforcement boundary.
 With an engaged baseline, or whenever `--update-baseline` is given,
 resolving `--coverage-file` to the baseline path is a usage error
 (exit 1), checked before any cleanup — §4.1's cleanup step must never
-be able to delete the baseline. With no baseline present and no
+be able to delete the baseline. Resolution means lexical path
+expansion **plus**, when the resolved path names an existing file,
+filesystem identity with the baseline: a case-insensitive spelling or
+a path through a symlinked directory must not slip past the guard. With no baseline present and no
 `--update-baseline`, the invocation behaves as plain v1 per the
 guarantee above.
 
@@ -643,7 +648,10 @@ JSON object:
 
 Validation — every failure is exit 3, checked before cleanup or test
 execution (§4.1): exact key sets (unknown or missing keys rejected;
-duplicate JSON member names rejected); types as shown; `comp >= 1`;
+duplicate JSON member names rejected); types as shown; `path` a
+normalized project-root-relative path — no leading `/` and no empty,
+`.`, or `..` segments (§11.3's containment and key matching are lexical
+byte comparisons, which only the normalized form can satisfy); `comp >= 1`;
 `units >= 0`; `0 <= hits <= units`; `units == 0` implies `hits == 0`;
 `called` boolean, and `false` whenever `units > 0` (the invocation bit is
 never consulted when units exist, §7.2); `line >= 1`; row keys
@@ -658,9 +666,12 @@ that has a successor; no trailing spaces; an empty array prints as
 `[]` on the member's line; top-level keys in the order `schema_version`,
 `metric_version`, `rows`; row keys in the order `path`, `identity`,
 `line`, `comp`, `units`, `hits`, `called`; rows sorted by
-`(path, line, identity)` with byte-wise string comparison; closing
-`]`/`}` on their own line at the parent's indentation (standard
-pretty-print); integers rendered as plain decimal digit runs (no sign,
+`(path, line, identity)` with byte-wise string comparison; the
+top-level `{` is the file's first byte and stands alone on the first
+line; a row object's `{` stands alone on its array-element line, its
+first member beginning on the next line; closing `]`/`}` on their own
+line at the parent's indentation; no blank lines anywhere; integers
+rendered as plain decimal digit runs (no sign,
 no exponent, no leading zeros); booleans as `true`/`false`; strings
 escaped per RFC 8259 using exactly the short escapes `\"` `\\` `\b`
 `\f` `\n` `\r` `\t`, `\u00XX` (lowercase hex) for other control
@@ -690,10 +701,20 @@ Staleness is checked against a **freshness scope**, defined exactly:
 - A **partial run without `--changed`** (explicit paths only): the scope
   is the analyzed files' paths plus, for each explicit **directory**
   argument, every baseline row `path` under that directory — whether or
-  not the file still exists. This is sound because every existing `.rb`
-  under such a directory *is* analyzed, so an in-scope row with no
-  reported match is genuinely gone, moved, or passing. (An explicit
-  *file* argument that does not exist is already a usage error, §3.)
+  not the file still exists. "Under" is decided lexically: the directory
+  argument is normalized to a project-root-relative path, and a row is
+  under it when its `path` begins with that path followed by `/` — a
+  pure byte comparison, no filesystem access or symlink resolution.
+  A directory argument that resolves to the project root itself, or to
+  an ancestor of it, contains every row: the freshness scope is a full
+  run's. (The prefix rule is degenerate there — no normalized row path
+  begins with `./` or `../` — so the containment is stated explicitly.)
+  This is sound because every existing `.rb` under such a directory *is*
+  analyzed (rows inside dot-directories, which §3's glob never enters,
+  go stale exactly as they would under a full run), so an in-scope row
+  with no reported match is genuinely gone, moved, passing, or newly
+  marker-excluded (§7.4). (An explicit *file* argument that does not
+  exist is already a usage error, §3.)
 - A **`--changed` run** (alone or composed with explicit paths): the
   scope is the analyzed files' paths plus every git-reported deleted
   path and rename origin (restricted to the explicit paths when
@@ -778,8 +799,11 @@ baselined file goes stale even when nothing else changed — §11.3's
 deletion clause is live in exactly its motivating scenario; an empty
 explicit-directory selection sweeps that directory's rows. An empty
 scope exits 0. `--update-baseline` with an empty full selection prints
-`nothing to analyze` and writes the empty baseline, exit 0. Without a
-baseline, §3's early return is byte-for-byte unchanged.
+`nothing to analyze` and writes the empty baseline, exit 0 — including
+**initial creation**: with no baseline present it still writes
+`"rows": []`, engaging the ratchet at zero debt. §3's untouched
+empty-selection early return applies only to **non-update** invocations
+without a baseline; there it is byte-for-byte unchanged.
 
 ### 11.5 Row keys and accepted brittleness
 
