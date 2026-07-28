@@ -2,10 +2,6 @@ module Crap4Ruby
   # Option parsing and pipeline orchestration (spec §3, §4). Every failure
   # path raises Failure; the only Kernel#exit lives in exe/crap4ruby.
   class CLI
-    # §8: the gate compares unrounded values — an exact Rational, because a
-    # Float 8.0 comparison rounds away a max within half an ulp of 8.
-    THRESHOLD = Rational(8)
-
     USAGE = <<~TEXT
       Usage: crap4ruby [options] [<path>...]
 
@@ -15,8 +11,13 @@ module Crap4Ruby
         --no-run                        do not run tests; consume the existing coverage report
         --test-command "<cmd>"          run <cmd> under `simplecov run` instead of the detected command
         --coverage-file <path>          coverage report location (default: <project root>/coverage/coverage.json)
+        --update-baseline               full run, then rewrite crap4ruby-baseline.json (shrink-only)
         --help                          print this help
         --version                       print the version
+
+      A crap4ruby-baseline.json in the project root engages the ratchet: baselined
+      offenders are grandfathered, new or worsened ones fail, stale rows demand
+      --update-baseline.
 
       Exit codes: 0 ok · 1 usage error · 2 CRAP threshold exceeded · 3 coverage unavailable/invalid · 4 tests failed
     TEXT
@@ -38,6 +39,7 @@ module Crap4Ruby
       @no_run = false
       @test_command = nil
       @coverage_file = nil
+      @update_baseline = false
       @short_circuit = nil
     end
 
@@ -56,17 +58,19 @@ module Crap4Ruby
 
       project = Project.locate(@cwd)
       files = project.select_files(@paths, changed: @changed, cwd: @cwd)
-      if files.empty?
-        @stdout.puts "nothing to analyze"
-        return 0
-      end
 
-      coverage_path =
-        if @coverage_file
-          File.expand_path(@coverage_file, @cwd)
-        else
-          File.join(project.root, "coverage", "coverage.json")
-        end
+      # §4.1 (v2): the baseline is read and statically validated after file
+      # selection but *before* the empty-selection check — and therefore
+      # before cleanup — so a malformed policy file fails loudly without
+      # costing a test run or deleting an artifact. With no baseline and no
+      # --update-baseline this is one lstat, and §11.1's byte-for-byte v1
+      # guarantee holds from here on.
+      baseline_path = File.join(project.root, Baseline::FILENAME)
+      baseline = Baseline.read(baseline_path)
+      coverage_path = resolve_coverage_path(project)
+      guard_baseline_alias(coverage_path, baseline_path, baseline)
+
+      return empty_selection(project, baseline, baseline_path) if files.empty?
 
       if @no_run
         raise Failure.new("--no-run requires a clean working tree", 3) unless project.tree_clean?
@@ -80,8 +84,13 @@ module Crap4Ruby
       verify_trusted_artifact(project, coverage, files) if @no_run
 
       entries, excluded_count = analyze(files, coverage, project)
+      check_unique_keys(entries) if baseline # §11.5
       report = Report.new(entries, excluded_count: excluded_count)
       report.render(@stdout)
+
+      failing = failing_rows(entries)
+      return update_baseline(baseline, baseline_path, failing) if @update_baseline
+      return ratchet_gate(project, baseline, failing, files) if baseline
       gate(report)
     end
 
@@ -100,12 +109,17 @@ module Crap4Ruby
         when /\A--test-command=(.+)\z/m then @test_command = Regexp.last_match(1)
         when "--coverage-file" then @coverage_file = option_value(arg, args)
         when /\A--coverage-file=(.+)\z/m then @coverage_file = Regexp.last_match(1)
+        when "--update-baseline" then @update_baseline = true
         when /\A-/ then raise Failure.new("unknown option: #{arg}\n\n#{USAGE}", 1)
         else @paths << arg
         end
       end
       if @test_command && @no_run
         raise Failure.new("--test-command cannot be combined with --no-run", 1)
+      end
+      # §11.4: a partial analysis must never rewrite the baseline.
+      if @update_baseline && (@changed || @paths.any?)
+        raise Failure.new("--update-baseline cannot be combined with --changed or explicit paths", 1)
       end
     end
 
@@ -158,6 +172,109 @@ module Crap4Ruby
       return 0 unless max && max > THRESHOLD
       @stderr.puts "CRAP threshold exceeded: #{Report.decimal(max, 2)} > 8.0"
       2
+    end
+
+    def resolve_coverage_path(project)
+      return File.expand_path(@coverage_file, @cwd) if @coverage_file
+      File.join(project.root, "coverage", "coverage.json")
+    end
+
+    # §11.1: §4.1's cleanup step must never be able to delete the baseline,
+    # so the aliasing check precedes it — and fires under --update-baseline
+    # even before any baseline exists.
+    def guard_baseline_alias(coverage_path, baseline_path, baseline)
+      return unless baseline || @update_baseline
+      return unless coverage_path == baseline_path
+      raise Failure.new("--coverage-file resolves to the baseline file #{baseline_path}", 1)
+    end
+
+    # §11.4: with a baseline engaged or being written, an empty selection
+    # still means something — but never a cleanup, a test run, or a
+    # coverage read. Without one, §3's early return is byte-for-byte v1.
+    def empty_selection(project, baseline, baseline_path)
+      @stdout.puts "nothing to analyze"
+      return 0 unless baseline || @update_baseline
+      return update_baseline(baseline, baseline_path, []) if @update_baseline
+      ratchet_gate(project, baseline, [], [])
+    end
+
+    # §11.3: only rows above the threshold consult the baseline. The stored
+    # components are exactly these, so the same value object carries a row
+    # into the classifier and into the file.
+    def failing_rows(entries)
+      entries.map { |entry| Baseline::Row.from_entry(entry) }.select { |row| row.crap > THRESHOLD }
+    end
+
+    def ratchet_gate(project, baseline, failing, files)
+      ratchet = Ratchet.new(baseline: baseline, current_rows: failing,
+                            scope: freshness_scope(project, files))
+      ratchet.diagnostics.each { |line| @stderr.puts line }
+      ratchet.exit_code
+    end
+
+    # §11.3's three freshness scopes, mode-split. A full run checks every
+    # row; an explicit-paths run adds each directory argument's subtree
+    # lexically; a --changed run adds git's deletions and rename origins
+    # and nothing else — never a directory sweep, or an unchanged file's
+    # grandfathered rows would go falsely stale.
+    def freshness_scope(project, files)
+      analyzed = files.map { |file| project.relative(file) }
+      return Ratchet::Scope.full if !@changed && @paths.empty?
+      arguments = project.argument_paths(@paths, cwd: @cwd)
+      return Ratchet::Scope.new(paths: analyzed, directories: arguments[:directories]) unless @changed
+      Ratchet::Scope.new(paths: analyzed + removals_in_scope(project, arguments))
+    end
+
+    def removals_in_scope(project, arguments)
+      removals = project.changed_removals
+      return removals if @paths.empty?
+      # Composed with explicit paths, the removals are restricted to them —
+      # same lexical containment, no filesystem access (the paths are gone).
+      restriction = Ratchet::Scope.new(paths: arguments[:files], directories: arguments[:directories])
+      removals.select { |path| restriction.include?(path) }
+    end
+
+    # §11.5: under an engaged baseline a duplicate full key among
+    # reportable rows is an analysis failure — the baseline cannot address
+    # either row unambiguously.
+    def check_unique_keys(entries)
+      seen = {}
+      entries.each do |entry|
+        key = [entry.path, entry.row.method.identity, entry.row.method.definition_line]
+        if seen.key?(key)
+          raise Failure.new("duplicate row key under an engaged baseline: " \
+                            "#{key[1]} (#{key[0]}:#{key[2]})", 3)
+        end
+        seen[key] = true
+      end
+    end
+
+    # §11.4: the write is the requested outcome, so a successful update
+    # exits 0 even with failing rows — the gate question belongs to the
+    # next ordinary run.
+    def update_baseline(baseline, baseline_path, rows)
+      refuse_growth(baseline, rows) if baseline
+      Baseline.write(baseline_path, rows)
+      0
+    end
+
+    # Shrink-only (§11.4): subset by key, and no retained key may score
+    # worse than it does in the file. New or worsened debt is fixed, never
+    # baselined; a deliberate re-adoption is a reviewed delete-and-recreate.
+    def refuse_growth(baseline, rows)
+      violations = rows.filter_map do |row|
+        stored = baseline.row_for(row.key)
+        if stored.nil?
+          "  new: #{row.identity} (#{row.location}) CRAP #{Report.decimal(row.crap, 2)}"
+        elsif row.crap > stored.crap
+          "  worsened: #{row.identity} (#{row.location}) CRAP #{Report.decimal(row.crap, 2)} > " \
+            "#{Report.decimal(stored.crap, 2)} baselined"
+        end
+      end
+      return if violations.empty?
+      raise Failure.new("--update-baseline refused: the baseline may only shrink " \
+                        "(#{violations.size} new or worsened row(s)); fix them or " \
+                        "regenerate the baseline deliberately\n#{violations.join("\n")}", 2)
     end
   end
 end
