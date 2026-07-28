@@ -114,13 +114,11 @@ module Crap4Ruby
 
     # Exact arithmetic throughout: the gate compares unrounded values and
     # the report rounds half-up, both of which binary floats would skew.
+    # §7.2's invocation bit is consulted only at zero units — Row.cov_for
+    # enforces that, and the baseline recomputes through the same function.
     def build_row(method, tally)
-      cov =
-        if tally.units.positive?
-          Rational(tally.hits, tally.units)
-        else
-          called?(method) ? Rational(1) : Rational(0) # §7.2: the bit, only at zero units
-        end
+      cov = Row.cov_for(units: tally.units, hits: tally.hits,
+                        called: tally.units.zero? && called?(method))
       Row.new(method: method, units: tally.units, hits: tally.hits, cov: cov)
     end
 
