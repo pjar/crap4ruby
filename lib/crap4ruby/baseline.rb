@@ -67,7 +67,7 @@ module Crap4Ruby
         stat = stat_for(path)
         return nil if stat.nil?
         refuse_irregular(path, stat)
-        parse(File.read(path, encoding: Encoding::UTF_8), path)
+        parse(read_bytes(path), path)
       end
 
       # §11.2's canonical form, byte for byte, plus §11.4's rule that a
@@ -119,6 +119,15 @@ module Crap4Ruby
         File.lstat(path)
       rescue Errno::ENOENT, Errno::ENOTDIR
         nil
+      rescue SystemCallError => error
+        invalid "cannot read #{path}: #{error.message}"
+      end
+
+      # §11.2: every failure here is exit 3, an unreadable file included —
+      # the engaged baseline is a validation input, and a permission error
+      # must not escape as a raw Errno (same posture as stat_for).
+      def read_bytes(path)
+        File.read(path, encoding: Encoding::UTF_8)
       rescue SystemCallError => error
         invalid "cannot read #{path}: #{error.message}"
       end

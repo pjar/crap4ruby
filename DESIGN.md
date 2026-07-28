@@ -326,15 +326,28 @@ cleanup → run → report → classification. Validation precedes the
 empty-selection check so a malformed policy file fails loudly without
 costing a test run; the aliasing guard precedes cleanup so §4.1 can
 never delete the baseline. With no baseline and no `--update-baseline`
-the whole addition is one `lstat` that returns nil, which is what makes
-§11.1's byte-for-byte guarantee cheap to keep true (and the freeze tests
-keep it honest).
+every §11 step is a no-op after one `lstat` that returns nil: the guard
+short-circuits, the scope inputs are not sampled, and the failing-row set
+is built only on the branches that consult the baseline. That is what
+makes §11.1's byte-for-byte guarantee cheap to keep true (and the freeze
+tests keep it honest).
 
 **`lstat`, not `stat`.** `File.file?` follows symlinks, so a symlinked
 baseline would silently engage and — worse — a write would follow the
 link out of the project. Engagement therefore stats with `File.lstat`:
 absent → nil, regular file → engaged, anything else → refused (exit 3)
-in both the read and the write path.
+in both the read and the write path. Every other failure mode of that
+read is exit 3 too, unreadable-file included: §11.2 admits no path where
+the engaged baseline produces a raw `Errno` instead of a diagnosis
+(CRA-51 round 2).
+
+**The aliasing guard resolves, it does not merely compare** (§11.1, as
+amended). Lexical expansion catches the common spellings and — crucially
+— a coverage path that does not exist yet; `File.identical?` catches the
+rest, because cleanup does not care how a path is spelled: a route
+through a symlinked directory or a case-insensitive spelling on APFS is
+the same inode, and deleting it deletes the policy file. Both checks, in
+that order, because `File.identical?` is false for a non-existent path.
 
 **Duplicate member names, two mechanisms.** §11.2 rejects duplicate JSON
 members, which every parser otherwise collapses to the last one. Which
@@ -363,6 +376,27 @@ surfacing deletions and *rename* origins (a copy's origin is still there,
 so it is not one of them); the memo also means the scope describes the
 tree the selection was taken from, not whatever the test suite left
 behind.
+
+**The scope's inputs are sampled with the selection.** Whether an
+argument is a directory, and whether it contains the project root, is
+decided next to file selection — before cleanup and the test run — for
+the same reason the `git status` parse is memoized: a suite that deletes
+an explicitly named directory must not be able to demote it to a "file"
+and quietly shrink the scope. `Project#argument_paths` returns the whole
+answer as data (`directories`, `files`, `root`), so `Ratchet::Scope`
+stays a pure predicate and the filesystem is consulted exactly once, at
+the honest moment.
+
+**Root and ancestor arguments are flagged, not prefixed** (§11.3, as
+amended). `crap4ruby .` normalizes to `"."`, and no normalized row path
+begins with `"./"` — the lexical rule is degenerate there, so a
+containing argument sets `root` and the scope becomes a full run's.
+Both construction sites honour it: the partial-run scope *and* the
+`--changed` composition restriction, where a containing argument must
+restrict no removal rather than filter every one away. A directory the
+root cannot be expressed relative to (a different volume) is treated the
+same way — fail loud rather than silently narrow. A *sibling* of the
+root is neither: it contains no row and contributes nothing.
 
 **Hook point for CRA-49 (parallel-worker coverage).** If
 `--update-baseline` is later made to refuse or warn when coverage looks

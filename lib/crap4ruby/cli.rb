@@ -69,8 +69,9 @@ module Crap4Ruby
       baseline = Baseline.read(baseline_path)
       coverage_path = resolve_coverage_path(project)
       guard_baseline_alias(coverage_path, baseline_path, baseline)
+      arguments = sample_arguments(project, baseline)
 
-      return empty_selection(project, baseline, baseline_path) if files.empty?
+      return empty_selection(project, baseline, baseline_path, arguments) if files.empty?
 
       if @no_run
         raise Failure.new("--no-run requires a clean working tree", 3) unless project.tree_clean?
@@ -88,9 +89,11 @@ module Crap4Ruby
       report = Report.new(entries, excluded_count: excluded_count)
       report.render(@stdout)
 
-      failing = failing_rows(entries)
-      return update_baseline(baseline, baseline_path, failing) if @update_baseline
-      return ratchet_gate(project, baseline, failing, files) if baseline
+      # Scoring the rows a second time is the ratchet's business alone: on
+      # the plain v1 path nothing beyond one lstat and one comparison has
+      # been added by §11.
+      return update_baseline(baseline, baseline_path, failing_rows(entries)) if @update_baseline
+      return ratchet_gate(project, baseline, failing_rows(entries), files, arguments) if baseline
       gate(report)
     end
 
@@ -181,21 +184,35 @@ module Crap4Ruby
 
     # §11.1: §4.1's cleanup step must never be able to delete the baseline,
     # so the aliasing check precedes it — and fires under --update-baseline
-    # even before any baseline exists.
+    # even before any baseline exists. Resolution is lexical expansion
+    # *plus* filesystem identity for a path that already names a file: a
+    # case-insensitive spelling or a route through a symlinked directory
+    # is the same file to cleanup, and File.identical? is false for a path
+    # that does not exist yet, which the lexical comparison still covers.
     def guard_baseline_alias(coverage_path, baseline_path, baseline)
       return unless baseline || @update_baseline
-      return unless coverage_path == baseline_path
-      raise Failure.new("--coverage-file resolves to the baseline file #{baseline_path}", 1)
+      return unless coverage_path == baseline_path || File.identical?(coverage_path, baseline_path)
+      raise Failure.new("the coverage report path resolves to the baseline file " \
+                        "#{baseline_path}; refusing — cleanup would delete it", 1)
+    end
+
+    # §11.3's scope inputs, sampled with the file selection so the scope
+    # describes the tree the selection was taken from. Only a run that can
+    # consult the baseline needs them, so the plain v1 path stats nothing.
+    def sample_arguments(project, baseline)
+      return Project::NO_ARGUMENTS unless (baseline || @update_baseline) && @paths.any?
+      project.argument_paths(@paths, cwd: @cwd)
     end
 
     # §11.4: with a baseline engaged or being written, an empty selection
     # still means something — but never a cleanup, a test run, or a
-    # coverage read. Without one, §3's early return is byte-for-byte v1.
-    def empty_selection(project, baseline, baseline_path)
+    # coverage read (and so, per §4.2, none of --no-run's trust-bounding
+    # checks either). Without one, §3's early return is byte-for-byte v1.
+    def empty_selection(project, baseline, baseline_path, arguments)
       @stdout.puts "nothing to analyze"
       return 0 unless baseline || @update_baseline
       return update_baseline(baseline, baseline_path, []) if @update_baseline
-      ratchet_gate(project, baseline, [], [])
+      ratchet_gate(project, baseline, [], [], arguments)
     end
 
     # §11.3: only rows above the threshold consult the baseline. The stored
@@ -205,31 +222,32 @@ module Crap4Ruby
       entries.map { |entry| Baseline::Row.from_entry(entry) }.select { |row| row.crap > THRESHOLD }
     end
 
-    def ratchet_gate(project, baseline, failing, files)
+    def ratchet_gate(project, baseline, failing, files, arguments)
       ratchet = Ratchet.new(baseline: baseline, current_rows: failing,
-                            scope: freshness_scope(project, files))
+                            scope: freshness_scope(project, files, arguments))
       ratchet.diagnostics.each { |line| @stderr.puts line }
       ratchet.exit_code
     end
 
     # §11.3's three freshness scopes, mode-split. A full run checks every
     # row; an explicit-paths run adds each directory argument's subtree
-    # lexically; a --changed run adds git's deletions and rename origins
-    # and nothing else — never a directory sweep, or an unchanged file's
-    # grandfathered rows would go falsely stale.
-    def freshness_scope(project, files)
+    # lexically — or every row, when an argument contains the project root;
+    # a --changed run adds git's deletions and rename origins and nothing
+    # else — never a directory sweep, or an unchanged file's grandfathered
+    # rows would go falsely stale.
+    def freshness_scope(project, files, arguments)
+      return Ratchet::Scope.full if !@changed && (@paths.empty? || arguments[:root])
       analyzed = files.map { |file| project.relative(file) }
-      return Ratchet::Scope.full if !@changed && @paths.empty?
-      arguments = project.argument_paths(@paths, cwd: @cwd)
       return Ratchet::Scope.new(paths: analyzed, directories: arguments[:directories]) unless @changed
       Ratchet::Scope.new(paths: analyzed + removals_in_scope(project, arguments))
     end
 
     def removals_in_scope(project, arguments)
       removals = project.changed_removals
-      return removals if @paths.empty?
       # Composed with explicit paths, the removals are restricted to them —
       # same lexical containment, no filesystem access (the paths are gone).
+      # An argument containing the project root restricts nothing.
+      return removals if @paths.empty? || arguments[:root]
       restriction = Ratchet::Scope.new(paths: arguments[:files], directories: arguments[:directories])
       removals.select { |path| restriction.include?(path) }
     end

@@ -58,6 +58,41 @@ class ProjectRatchetScopeTest < Minitest::Test
       split = project.argument_paths(["./app/models", "lib/one.rb"], cwd: root)
       assert_equal ["app/models"], split[:directories]
       assert_equal ["lib/one.rb"], split[:files]
+      refute split[:root]
+    end
+  end
+
+  # §11.3: the prefix rule is degenerate for the root — no normalized row
+  # path begins with "./" or "../" — so containment is flagged instead.
+  def test_root_and_ancestor_directory_arguments_are_flagged_not_prefixed
+    with_sandbox do |outer|
+      root = File.join(outer, "project")
+      FileUtils.mkdir_p(File.join(root, "lib"))
+      write_file(root, "Gemfile")
+      project = Crap4Ruby::Project.new(root)
+
+      [".", "lib/..", root, outer, File.join(root, "lib/../..")].each do |argument|
+        split = project.argument_paths([argument], cwd: root)
+        assert split[:root], "#{argument.inspect} contains the project root"
+        assert_empty split[:directories]
+      end
+
+      assert_empty project.argument_paths(["lib"], cwd: root)[:directories] - ["lib"]
+      refute project.argument_paths(["lib"], cwd: root)[:root]
+    end
+  end
+
+  # A sibling of the root is neither an ancestor nor in scope: it must not
+  # be mistaken for a full sweep.
+  def test_sibling_directory_argument_is_not_a_root_sweep
+    with_sandbox do |outer|
+      root = File.join(outer, "project")
+      FileUtils.mkdir_p(root)
+      FileUtils.mkdir_p(File.join(outer, "other"))
+      write_file(root, "Gemfile")
+      split = Crap4Ruby::Project.new(root).argument_paths(["../other"], cwd: root)
+      refute split[:root]
+      assert_equal ["../other"], split[:directories]
     end
   end
 end

@@ -25,6 +25,19 @@ class BaselineTest < Minitest::Test
     end
   end
 
+  # §11.2: every failure is exit 3, an unreadable file included — never a
+  # raw Errno escaping to the caller.
+  def test_unreadable_file_is_a_validation_failure_not_a_crash
+    skip "meaningless as root — chmod 000 stays readable" if Process.uid.zero?
+    with_sandbox do |root|
+      path = write_file(root, Baseline::FILENAME, Baseline.serialize([]))
+      File.chmod(0o000, path)
+      assert_failure(3, "cannot read") { Baseline.read(path) }
+    ensure
+      File.chmod(0o644, path)
+    end
+  end
+
   # Ruby's JSON keeps the last duplicate silently; §11.2 rejects the file.
   def test_duplicate_member_names_are_rejected_at_both_levels
     with_sandbox do |root|
