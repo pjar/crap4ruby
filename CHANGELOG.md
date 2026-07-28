@@ -44,6 +44,11 @@ Implements [spec.md](spec.md) 0.4.
 - Gemspec file list: an empty `git ls-files` result (tree sitting untracked
   inside an unrelated repository) now falls back to the glob list instead of
   packaging an empty gem (CRA-40).
+- README: the documented `.simplecov` setup now includes
+  `merge_subprocesses true` — without it, Rails' default process-parallel
+  testing silently discards worker coverage and crap4ruby gates on boot-only
+  data; a troubleshooting note names the symptom and warns off the serial
+  `PARALLEL_WORKERS=1` workaround (docs only, CRA-48).
 
 ## [0.1.0] - 2026-07-26
 
