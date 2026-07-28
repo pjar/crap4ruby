@@ -8,7 +8,8 @@ plus satellite riders, CRA-45). The §11 implementation (CRA-51,
 2026-07-28) added three review-driven clarifications: aliasing resolution
 by filesystem identity as well as lexical expansion (§11.1), root/ancestor
 directory-argument containment (§11.3), and the §4.2 empty-selection
-carve-out.
+carve-out. The parallel-coverage mismatch (CRA-49, 2026-07-28) added
+§4.3's static preflight warning and §11.4's `--update-baseline` refusal.
 0.3 was 2026-07-26, revised during implementation after a second external
 design review — Codex gpt-5.6-sol, high effort — and implementation
 findings; 0.2 was 2026-07-25, 21 findings triaged, see git history). This document plus the fixture corpus under
@@ -113,7 +114,7 @@ error (§11.1); an engaged baseline changes the empty-selection rule
 | 0 | OK — no method above threshold (including "nothing to analyze"; v2: or every offender grandfathered by an engaged baseline §11.3, or a successful `--update-baseline` run §11.4) |
 | 1 | CLI usage error (also: no Gemfile, ambiguous/unavailable test runner) |
 | 2 | CRAP threshold exceeded (v2: or new/worsened offenders against an engaged baseline §11.3, or an `--update-baseline` write refused by the shrink rule §11.4) |
-| 3 | coverage unavailable or invalid (missing/malformed report, schema mismatch, criteria disabled, stale, analyzed file absent or unparseable, ambiguous same-line definitions, cleanup failure; v2: also a malformed, stale, or metric-mismatched baseline, §11) |
+| 3 | coverage unavailable or invalid (missing/malformed report, schema mismatch, criteria disabled, stale, analyzed file absent or unparseable, ambiguous same-line definitions, cleanup failure; v2: also a malformed, stale, or metric-mismatched baseline, §11, and an `--update-baseline` refused under §4.3's parallel-coverage mismatch, §11.4) |
 | 4 | test command ran and failed |
 
 ## 4. Execution pipelines
@@ -188,6 +189,57 @@ Execution (always from the project root):
   `simplecov` ≥ 1.0 — otherwise exit 1 before anything runs (the
   `simplecov run` wrapper would fail before the tests start, which would
   otherwise masquerade as exit 4).
+
+**Parallel-coverage mismatch warning.** Rails' generated test helper
+declares process-parallel testing (`parallelize`), which SimpleCov's
+report only survives with `merge_subprocesses true`; without it the
+workers' coverage is silently dropped and the report degrades to
+boot-only data that still passes §4.4's structural checks. The mismatch
+is detected statically — no runtime signal is consulted. The **mismatch
+predicate** holds when all of:
+
+1. no `--test-command` was given — a user asserting the command asserts
+   its coverage behavior too;
+2. detection selects `bin/rails test`: `test/` exists, `spec/` does
+   not, and `bin/rails` exists and is executable. Under `--no-run`,
+   where nothing executes, the same three conditions are evaluated
+   statically;
+3. at least one file matched by `test/**/*.rb` (§3's glob semantics —
+   dot-directories are not entered) parses under §2's grammar pin and
+   contains a **receiverless call** named `parallelize`. The predicate
+   reads *declares*, not *executes*: a call in dead or guarded code
+   counts, while comments, string contents, `def parallelize`, calls
+   with an explicit receiver, and files that do not parse do not;
+4. `<project root>/.simplecov` does not carry **positive syntactic
+   proof** of the remedy. Positive proof: the file parses, and among
+   the direct statements of the block body of its `SimpleCov.configure`
+   call(s) — `configure` called on the constant `SimpleCov` (a leading
+   `::` is allowed) with a block — taken in source order across all
+   such calls, the **last** receiverless call named
+   `merge_subprocesses` exists, has exactly one argument, the literal
+   `true`, and no block. A missing, unreadable, or unparseable
+   `.simplecov`, or a conditional, indirect, or non-literal setting, is
+   not proof — the warning can fire on a project that configures the
+   setting elsewhere; the accepted remedy is the canonical line in
+   `.simplecov`;
+5. the selection is non-empty (an empty selection consumes no coverage;
+   §3's early return has already answered).
+
+When the predicate holds, exactly this one line prints to stderr:
+
+```
+warning: Rails test configuration declares `parallelize`, but .simplecov does not declare `merge_subprocesses true`; worker coverage may be missing
+```
+
+— once per run: after this section's preflight and lockfile checks
+succeed, before the child starts; under `--no-run`, after §4.2's
+clean-tree check passes, before the report is read. It therefore
+precedes any later gate, validation, or child-failure diagnostic, and
+never prints on a run that dies in preflight. The warning is not fatal:
+stdout, the score path, and every exit code are unchanged. False
+negatives are accepted by design (parallelism declared outside
+`test/**/*.rb` or via metaprogramming); the only fatal consequence is
+§11.4's `--update-baseline` refusal, which shares this predicate.
 
 ### 4.4 Report validation (both modes)
 
@@ -783,6 +835,29 @@ except that the rows to be written must satisfy §11.2's own validation —
 duplicate keys or any other violation abort with exit 3 and no write; a
 written baseline must always re-validate. A malformed or
 metric-mismatched existing file is not "initial creation": exit 3.
+
+**Parallel-coverage refusal.** When §4.3's mismatch predicate holds
+(evaluated statically, including under `--no-run`), every
+coverage-consuming `--update-baseline` invocation refuses — exit 3,
+checked after file selection, §11.2's validation, and §11.1's aliasing
+guard, before any cleanup, clean-tree check, or test execution, with
+any existing baseline byte-for-byte untouched — printing exactly this
+one line to stderr, *instead of* §4.3's warning:
+
+```
+--update-baseline refused: Rails test configuration declares `parallelize`, but .simplecov does not declare `merge_subprocesses true`; worker coverage may be missing
+```
+
+Exit 3, not 2: this is the untrustworthy-coverage-input category, not
+new debt. The gate's warning is observational; §11 turns a measurement
+into reviewed policy, and initial creation — which the shrink rule
+cannot protect — is exactly where boot-only coverage would grandfather
+offenders on falsely-measured components. The refusal is uniform across
+initial creation and updates: one rule, one audit. The empty-selection
+write (`"rows": []`, below) consumes no coverage and is unaffected. The
+remedies are the warning's: declare `merge_subprocesses true` in
+`.simplecov`, or pass `--test-command`, asserting the command's
+coverage behavior.
 
 A successful update exits **0** even though failing rows exist — the
 requested outcome is the write; the gate question belongs to the next

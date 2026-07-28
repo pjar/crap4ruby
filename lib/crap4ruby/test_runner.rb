@@ -19,9 +19,14 @@ module Crap4Ruby
       end
     end
 
-    def run(custom_command)
+    # §4.3's mismatch warning prints once the lockfile and preflight checks
+    # have succeeded and before the child starts, so a run that dies in
+    # preflight never prints it. The CLI owns the predicate and the stream
+    # and passes the sink only when the predicate holds.
+    def run(custom_command, warn_to: nil)
       verify_simplecov!
       inner = custom_command ? ["sh", "-c", custom_command] : detect_command
+      warn_to&.puts(ParallelCoverage::WARNING)
       argv = ["bundle", "exec", "simplecov", "run", "--", *inner]
       status = execute(argv)
       return if status&.success?

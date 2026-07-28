@@ -73,12 +73,21 @@ module Crap4Ruby
 
       return empty_selection(project, baseline, baseline_path, arguments) if files.empty?
 
+      # §4.3's mismatch predicate, evaluated once per run: conjunct 1 here,
+      # conjunct 5 answered by the early return above, the static conjuncts
+      # 2–4 by ParallelCoverage. §11.4: at the write the shared predicate is
+      # fatal, and refuses before cleanup, the clean-tree check, and any test
+      # run — so an existing baseline stays byte-for-byte untouched.
+      mismatch = @test_command.nil? && ParallelCoverage.mismatch?(project.root)
+      raise Failure.new(ParallelCoverage::REFUSAL, 3) if mismatch && @update_baseline
+
       if @no_run
         raise Failure.new("--no-run requires a clean working tree", 3) unless project.tree_clean?
+        @stderr.puts ParallelCoverage::WARNING if mismatch
       else
         runner = TestRunner.new(project.root)
         runner.clean(coverage_path)
-        runner.run(@test_command)
+        runner.run(@test_command, warn_to: mismatch ? @stderr : nil)
       end
 
       coverage = CoverageReport.load(coverage_path, analyzed_files: files)

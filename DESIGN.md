@@ -148,6 +148,22 @@ then:
 6. Extract → attribute → rows → report on stdout → gate on unrounded max
    (message to stderr, exit 2).
 
+**Parallel-coverage mismatch (§4.3, CRA-49).** `ParallelCoverage`
+evaluates the static predicate (Rails `bin/rails test` layout +
+receiverless `parallelize` under `test/**/*.rb` + no literal
+`merge_subprocesses true` among the direct statements of `.simplecov`'s
+`SimpleCov.configure` block(s)) with the same Prism grammar pin as
+extraction. It is deliberately syntactic — declares, not executes —
+because a runtime signal would be nondeterministic and a report-level
+heuristic would put an arbitrary threshold into an exact contract
+(option C was rejected in the CRA-49 ruling; Codex gpt-5.6-sol concurring
+review, 2026-07-28). The CLI computes the predicate once per run and
+threads only its boolean: TestRunner prints the warning between §4.3
+preflight and the child spawn, the `--no-run` path prints it after the
+clean-tree check, and `--update-baseline` refuses with exit 3 *before*
+cleanup — initial creation is the one path §11.4's shrink rule cannot
+protect, so the write is the one place the shared predicate turns fatal.
+
 ## 5. Numbers and rendering (§8)
 
 `cov`/`CRAP` are **Rationals** end to end — `Rational(hits, units)` and
