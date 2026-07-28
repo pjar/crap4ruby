@@ -498,8 +498,8 @@ Billing::Invoice#finalize!                 4    100.0     4.00  app/models/billi
 ## 9. Conformance fixtures
 
 The fixture corpus is the executable half of this spec. It covers §§1–10
-(the v1 profile); §9.3 enumerates the corpus planned for §11, which lands
-with the v2 implementation ticket.
+(the v1 profile); §9.3 enumerates the §11 corpus, implemented in
+`test/conformance/ratchet_test.rb`.
 
 ### 9.1 Complexity fixtures — `test/fixtures/complexity/*.rb`
 
@@ -543,10 +543,10 @@ the case directory, attributes coverage per §7, and asserts rows and
 exclusions exactly. These cases exercise §7 only; pipeline behavior (§4) is
 tested by integration tests, not fixtures.
 
-### 9.3 Planned v2 corpus — baseline ratchet (§11)
+### 9.3 v2 corpus — baseline ratchet (§11)
 
-*Plan only; these fixtures land with the §11 implementation ticket, keyed
-to §11's rules. Listed here so the contract and its executable half stay
+*Implemented as `test/conformance/ratchet_test.rb` (CRA-51), keyed to
+§11's rules. Listed here so the contract and its executable half stay
 enumerated together.* Cases: `new_offender` → 2; `worsened_exact` → 2
 (including an exact worsening whose 2-decimal display ties, `8.00 >
 8.00 baselined`); `improved_row` → 0 with an `--update-baseline` shrink
@@ -563,9 +563,8 @@ freshness scope unchecked); `update_refuses_partial_selection` → 1;
 `changed_dir_composition_keeps_unchanged_offender` → 0 (an unchanged,
 still-failing grandfathered row under `--changed <dir>` is NOT stale);
 `changed_empty_selection_deletion_goes_stale` → 3. The no-baseline byte-for-byte
-guarantee (§11.1) is pinned NOW by exact-output integration tests
-(`test/integration/pipeline_test.rb`), the only executable artifact that
-lands with the spec revision itself.
+guarantee (§11.1) is pinned by exact-output integration tests
+(`test/integration/pipeline_test.rb`).
 
 ## 10. Non-goals (v1)
 
@@ -574,7 +573,7 @@ non-goal — specified for v2 in §11), mutation analysis, non-Bundler
 projects, editor integration, monorepo/engine module grouping,
 Prolog/Datalog rules engine, JRuby/TruffleRuby.
 
-## 11. Baseline ratchet (v2 — specified, not yet implemented)
+## 11. Baseline ratchet (v2)
 
 This section is the normative contract for the v2 baseline ratchet. **v1
 implements §§1–10 only**; a conforming v1 build has no baseline behavior,
