@@ -24,6 +24,8 @@ lib/crap4ruby/method_info.rb      identity, span, comp, declaration lines (value
 lib/crap4ruby/attribution.rb      §7 ownership, units, hits, invocation bit, ignores
 lib/crap4ruby/row.rb              cov, CRAP, formatting-ready values
 lib/crap4ruby/report.rb           §8 rendering, sort, footer, gate
+lib/crap4ruby/baseline.rb         §11.1 engagement, §11.2 validation + canonical write
+lib/crap4ruby/ratchet.rb          §11.3 freshness scope, classification, diagnostics
 ```
 
 ### Error / exit-code strategy
@@ -128,6 +130,8 @@ then:
    consumes the extra origin-path token for `R`/`C`). Selection is sorted,
    deduped, absolute internally; reported relative to project root.
 2. Empty selection → `nothing to analyze`, exit 0 — before cleanup/run.
+   (v2: the baseline is read and validated just *before* this check, and
+   an engaged baseline gives an empty selection meaning — §10 below.)
 3. Normal mode: delete report + sibling `.resultset.json` (files only;
    failure = exit 3), detect test command per §4.3 table (preflight via
    `Gemfile.lock` grep / executable bit), run
@@ -239,8 +243,10 @@ the test run itself.
 
 ## 9. Baseline ratchet (v2) — rationale (spec §11)
 
-Spec-first per CRA-11/CRA-45: §11 is contract, this section is why. No
-implementation exists yet; the only executable artifact is the pair of
+Spec-first per CRA-11/CRA-45: §11 is contract, this section is why.
+Implemented in CRA-51; §10 below records the implementation choices worth
+a rationale. The executable contract is
+`test/conformance/ratchet_test.rb` (the §9.3 corpus) plus the pair of
 byte-exact no-baseline freeze tests in
 `test/integration/pipeline_test.rb`.
 
@@ -289,3 +295,82 @@ stale-beats-new precedence so a rename reads as "fix the baseline", not
 produce diff noise, and the §11.2 validator can reject unknown keys
 without ambiguity. Writes are atomic; failure leaves the previous file
 byte-identical.
+
+## 10. Ratchet implementation (CRA-51)
+
+```
+lib/crap4ruby/baseline.rb  §11.1 engagement, §11.2 validation, canonical bytes, atomic write
+lib/crap4ruby/ratchet.rb   §11.3 freshness scope, classification, diagnostics, exit precedence
+```
+
+Two objects, split along the line the spec already draws: `Baseline` is
+the *artifact* (parse, validate, serialize, write — it never sees a
+report), `Ratchet` is the *judgment* (pure computation over value
+objects — no I/O, no filesystem, no git). `CLI` keeps what it always
+kept: ordering and exit codes. `Project` gained the two git-derived
+inputs §11.3 needs and nothing else.
+
+**One arithmetic definition.** `Row.cov_for` and `Row.crap_for` are now
+the only places cov and CRAP are computed; attribution scores through
+them and `Baseline::Row` recomputes stored components through them. A
+"worsened" comparison therefore cannot drift from the gate even in
+principle — and everything stays exact `Rational`, no Float anywhere in
+scoring, comparison, or recomputation. The same `Baseline::Row` value
+object carries a failing row into the classifier *and* into the file, so
+"what is compared" and "what is written" cannot disagree either.
+
+**Pipeline order** (§4.1's v2 note, §11.1): options → project root →
+selection → baseline read + static validation (exit 3) → the
+`--coverage-file` aliasing guard (exit 1) → empty-selection semantics →
+cleanup → run → report → classification. Validation precedes the
+empty-selection check so a malformed policy file fails loudly without
+costing a test run; the aliasing guard precedes cleanup so §4.1 can
+never delete the baseline. With no baseline and no `--update-baseline`
+the whole addition is one `lstat` that returns nil, which is what makes
+§11.1's byte-for-byte guarantee cheap to keep true (and the freeze tests
+keep it honest).
+
+**`lstat`, not `stat`.** `File.file?` follows symlinks, so a symlinked
+baseline would silently engage and — worse — a write would follow the
+link out of the project. Engagement therefore stats with `File.lstat`:
+absent → nil, regular file → engaged, anything else → refused (exit 3)
+in both the read and the write path.
+
+**Duplicate member names, two mechanisms.** §11.2 rejects duplicate JSON
+members, which every parser otherwise collapses to the last one. Which
+mechanism can see them depends on the json version, so `Baseline.parse`
+uses both: `allow_duplicate_key: false` (json ≥ 2.13 deduplicates inside
+the parser and reports duplicates only through that option; older
+versions ignore the unknown key) and an `object_class` Hash subclass
+whose `[]=` flags a repeat (what older parsers, which assign every pair
+through it, still catch). Neither is load-bearing alone; both land on
+exit 3.
+
+**Serialization is hand-written.** `JSON.generate` produces valid JSON,
+but §11.2 specifies *bytes* — member order, indentation, the empty array
+inline, the escape set, one trailing newline. A generator's formatting is
+not a contract we control, so the writer emits the bytes directly and the
+corpus asserts them against literal heredocs, sharing no oracle with the
+implementation. Writes validate first (§11.4: a written baseline must
+always re-validate), then write-temp-and-rename inside the project root.
+
+**Freshness scope as an object.** `Ratchet::Scope` answers one question —
+may this run call that row stale — in three shapes (full, path/directory,
+`--changed`). Containment is a byte prefix plus `/`, never a filesystem
+question: the rows most in need of the check name files that no longer
+exist. `Project` now parses `git status` once per run and memoizes it,
+surfacing deletions and *rename* origins (a copy's origin is still there,
+so it is not one of them); the memo also means the scope describes the
+tree the selection was taken from, not whatever the test suite left
+behind.
+
+**Hook point for CRA-49 (parallel-worker coverage).** If
+`--update-baseline` is later made to refuse or warn when coverage looks
+like parallel-worker garbage (a merged report missing workers' hits would
+baseline debt that does not exist), the check belongs in
+`CLI#update_baseline`, before `refuse_growth` — after the report exists,
+so the heuristic can look at the scored rows and the loaded
+`CoverageReport`, and before any comparison or write, so a refusal leaves
+the file byte-for-byte untouched. A warning variant would print to stderr
+there too, which is the only place §11.4's "stderr stays empty on
+success" would need revisiting.

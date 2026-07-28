@@ -15,9 +15,16 @@ Implements [spec.md](spec.md) 0.4.
   `--help` (spec §3, CRA-47).
 - Analyzed-grammar pin: source is parsed as Ruby 4.0 grammar regardless of the
   running interpreter, with a normative upgrade policy (spec §2, CRA-46).
-- Baseline-ratchet design for legacy adoption, specified as spec §11 (v2 —
-  not yet implemented); the byte-for-byte no-baseline guarantee is pinned now
-  by integration freeze tests (CRA-45).
+- Baseline-ratchet design for legacy adoption, specified as spec §11; the
+  byte-for-byte no-baseline guarantee is pinned by integration freeze tests
+  (CRA-45).
+- Baseline ratchet, implemented (spec §11, CRA-51): a `crap4ruby-baseline.json`
+  in the project root grandfathers the offenders it lists, fails new and
+  worsened ones (exit 2), and demands `--update-baseline` for rows that went
+  stale (exit 3). `--update-baseline` performs a full run and rewrites the
+  file in canonical bytes, shrink-only — a write that would add or worsen a
+  row is refused (exit 2) with the file untouched. With no baseline present,
+  behavior is byte-for-byte unchanged.
 
 ### Changed
 
