@@ -25,6 +25,16 @@ Implements [spec.md](spec.md) 0.4.
   file in canonical bytes, shrink-only — a write that would add or worsen a
   row is refused (exit 2) with the file untouched. With no baseline present,
   behavior is byte-for-byte unchanged.
+- Parallel-coverage mismatch detection (spec §4.3/§11.4, CRA-49): when the
+  detected test command is `bin/rails test`, the test tree declares
+  `parallelize`, and `.simplecov` does not literally set
+  `merge_subprocesses true`, a pinned one-line stderr warning fires
+  (non-fatal — SimpleCov silently drops worker coverage in that
+  configuration, degrading the report to boot-only data). The same
+  statically-evaluated predicate makes every coverage-consuming
+  `--update-baseline` invocation refuse with exit 3 and the baseline
+  untouched: a baseline built from garbage coverage is irreversible,
+  reviewed damage.
 
 ### Changed
 
