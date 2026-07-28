@@ -141,7 +141,10 @@ an engaged baseline.
 
 Never deletes or writes anything (v2 exception: `--update-baseline
 --no-run` may write the baseline file — and only it — after every check
-below passes, §11.4). `--no-run` consumes a **trusted artifact**;
+below passes, §11.4; with an **empty selection** no coverage artifact is
+consumed and §11.4's empty-selection semantics govern alone — the checks
+below, which exist to bound trust in the report, do not run).
+`--no-run` consumes a **trusted artifact**;
 these checks bound, but cannot eliminate, that trust (coverage configuration
 or test changes made after the run are detectable only via the tree/commit
 checks below):
@@ -603,7 +606,10 @@ enforcement boundary.
 With an engaged baseline, or whenever `--update-baseline` is given,
 resolving `--coverage-file` to the baseline path is a usage error
 (exit 1), checked before any cleanup — §4.1's cleanup step must never
-be able to delete the baseline. With no baseline present and no
+be able to delete the baseline. Resolution means lexical path
+expansion **plus**, when the resolved path names an existing file,
+filesystem identity with the baseline: a case-insensitive spelling or
+a path through a symlinked directory must not slip past the guard. With no baseline present and no
 `--update-baseline`, the invocation behaves as plain v1 per the
 guarantee above.
 
@@ -699,6 +705,10 @@ Staleness is checked against a **freshness scope**, defined exactly:
   argument is normalized to a project-root-relative path, and a row is
   under it when its `path` begins with that path followed by `/` — a
   pure byte comparison, no filesystem access or symlink resolution.
+  A directory argument that resolves to the project root itself, or to
+  an ancestor of it, contains every row: the freshness scope is a full
+  run's. (The prefix rule is degenerate there — no normalized row path
+  begins with `./` or `../` — so the containment is stated explicitly.)
   This is sound because every existing `.rb` under such a directory *is*
   analyzed (rows inside dot-directories, which §3's glob never enters,
   go stale exactly as they would under a full run), so an in-scope row

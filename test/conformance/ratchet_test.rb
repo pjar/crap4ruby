@@ -369,7 +369,7 @@ class RatchetConformanceTest < Minitest::Test
       write_baseline(root, seed([]))
       _out, err, code = run_cli([], root)
       assert_equal 3, code, "duplicate full key among reportable rows is an analysis failure"
-      refute_equal "", err
+      assert_match(/duplicate/, err, "the failure names the problem")
     end
   end
 
@@ -611,6 +611,64 @@ class RatchetConformanceTest < Minitest::Test
       assert_equal "nothing to analyze\n", out
       assert_equal "baseline: stale row Gone#g (lib/gone.rb:2) — no longer failing here; run --update-baseline\n", err
       assert_equal 3, code, "git-reported deletions stay in the --changed freshness scope"
+    end
+  end
+
+  # --- round-2 pins: panel findings against 8a351d7 -----------------------
+
+  # §11.2: every validation failure is exit 3 — including the baseline
+  # being unreadable, which must not escape as a raw Errno.
+  def test_unreadable_baseline_refused
+    skip "meaningless as root — chmod 000 stays readable" if Process.uid.zero?
+    with_bare_project(files: { "lib/mess.rb" => MESS }) do |root|
+      write_baseline(root, seed([mess_lower_row]))
+      File.chmod(0o000, File.join(root, BASELINE))
+      _out, err, code = run_cli([], root)
+      assert_equal 3, code, "an engaged-but-unreadable baseline is a validation failure, not a crash"
+      assert_match(/baseline/, err)
+    ensure
+      File.chmod(0o644, File.join(root, BASELINE))
+    end
+  end
+
+  # §11.3: a directory argument resolving to the project root contains
+  # every row — the lexical prefix rule is degenerate for "." and the
+  # containment is stated explicitly. §11.4 makes the empty selection
+  # sweep live.
+  def test_root_directory_argument_sweeps_all
+    with_bare_project do |root|
+      write_baseline(root, seed([mess_lower_row]))
+      out, err, code = run_cli(["."], root)
+      assert_equal "nothing to analyze\n", out
+      assert_equal "baseline: stale row Mess#tangle (lib/mess.rb:2) — no longer failing here; run --update-baseline\n", err
+      assert_equal 3, code, "crap4ruby . must not freshness-check less than crap4ruby lib"
+    end
+  end
+
+  # §11.1: the aliasing guard resolves by filesystem identity as well as
+  # lexical expansion — a path through a symlinked directory must not
+  # steer cleanup into deleting the baseline.
+  def test_coverage_file_alias_via_symlinked_directory
+    with_bare_project(files: { "lib/mess.rb" => MESS }) do |root|
+      untouched = seed([mess_lower_row])
+      write_baseline(root, untouched)
+      File.symlink(".", File.join(root, "covdir"))
+      _out, _err, code = run_cli(["--coverage-file", "covdir/#{BASELINE}"], root)
+      assert_equal 1, code, "a symlinked spelling of the baseline path is still the usage error"
+      assert_equal untouched, read_baseline(root), "the baseline survives — cleanup never saw it"
+    end
+  end
+
+  # §4.2 (as reconciled): with an empty selection no coverage artifact is
+  # consumed, so --update-baseline --no-run writes without the tree and
+  # commit checks — it needs no git repository at all.
+  def test_update_no_run_empty_selection_needs_no_artifact_checks
+    with_bare_project do |root|
+      out, err, code = run_cli(["--update-baseline", "--no-run"], root)
+      assert_equal "nothing to analyze\n", out
+      assert_equal "", err
+      assert_equal 0, code
+      assert_equal EXPECTED_EMPTY, read_baseline(root)
     end
   end
 
