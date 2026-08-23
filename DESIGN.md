@@ -1,7 +1,9 @@
 # crap4ruby — implementation design
 
-Status: reviewed (2026-07-26; Codex gpt-5.6-sol, high effort — 6 blocking
-findings and 10 gaps, all triaged into this revision and spec 0.3).
+Status: aligned with final spec 0.4 (2026-08-23). The original design review
+(2026-07-26; Codex gpt-5.6-sol, high effort — 6 blocking findings and 10
+gaps) was triaged into spec 0.3; subsequent sections record the reviewed 0.4
+implementation decisions.
 Contract lives in [spec.md](spec.md); this document describes *how* the
 implementation meets it. Where this document and spec.md disagree, spec.md
 wins.
@@ -414,13 +416,14 @@ root cannot be expressed relative to (a different volume) is treated the
 same way — fail loud rather than silently narrow. A *sibling* of the
 root is neither: it contains no row and contributes nothing.
 
-**Hook point for CRA-49 (parallel-worker coverage).** If
-`--update-baseline` is later made to refuse or warn when coverage looks
-like parallel-worker garbage (a merged report missing workers' hits would
-baseline debt that does not exist), the check belongs in
-`CLI#update_baseline`, before `refuse_growth` — after the report exists,
-so the heuristic can look at the scored rows and the loaded
-`CoverageReport`, and before any comparison or write, so a refusal leaves
-the file byte-for-byte untouched. A warning variant would print to stderr
-there too, which is the only place §11.4's "stderr stays empty on
-success" would need revisiting.
+**CRA-49 integration (parallel-worker coverage).** The final design uses
+§4.3's static predicate rather than a scored-report heuristic. `CLI#run`
+evaluates it once after non-empty file selection and baseline validation,
+but before cleanup or test execution. In ordinary run mode `TestRunner`
+prints the warning only after its lockfile and command-detection preflight
+succeeds and immediately before spawning the child; under `--no-run` the
+CLI prints it after the clean-tree check. For `--update-baseline` the same
+predicate is fatal at the earlier shared point: exit 3 before cleanup,
+trusted-artifact checks, test execution, growth comparison, or any write,
+leaving an existing baseline byte-for-byte untouched and protecting initial
+creation, where the shrink-only rule cannot help.

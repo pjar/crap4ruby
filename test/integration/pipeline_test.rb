@@ -85,9 +85,9 @@ class PipelineIntegrationTest < Minitest::Test
   end
 
   # §11.1 (v2 baseline ratchet): with no baseline file, behavior is
-  # byte-for-byte identical to v1. These pins freeze that guarantee before
-  # any implementation exists — a future ratchet ticket must keep them
-  # green untouched. The child suite's own output goes to the process
+  # byte-for-byte identical to v1. These pre-implementation pins remain the
+  # regression contract for the implemented ratchet and future revisions.
+  # The child suite's own output goes to the process
   # streams, not the injected IO, so the captured bytes are deterministic.
   def test_no_baseline_passing_run_output_is_byte_frozen
     with_project do |root|

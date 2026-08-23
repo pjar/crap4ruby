@@ -1,6 +1,6 @@
 # crap4ruby specification
 
-Version: 0.4 (draft, 2026-07-27; adds the Ruby 4.0 analyzed-grammar pin (§2,
+Version: 0.4 (final, 2026-08-23; adds the Ruby 4.0 analyzed-grammar pin (§2,
 CRA-46), the `--version` flag (§3, CRA-47), def-receiver counting and
 `define_method` singleton dot identity (§5/§6, CRA-43), safe-navigation
 call-write counting (§6, CRA-42), and the v2 baseline-ratchet design (§11
@@ -637,7 +637,8 @@ Prolog/Datalog rules engine, JRuby/TruffleRuby.
 This section is the normative contract for the v2 baseline ratchet. **v1
 implements §§1–10 only**; a conforming v1 build has no baseline behavior,
 and §11.1's guarantee pins that. Conformance profiles: *v1* = §§1–10;
-*v2* = §§1–10 plus this section.
+*v2* = §§1–10 plus this section. The crap4ruby implementation accompanying
+this specification conforms to the v2 profile.
 
 ### 11.1 Engagement and the no-baseline guarantee
 
