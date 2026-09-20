@@ -63,26 +63,10 @@ module Crap4Ruby
 
     def run
       parse!
-      # §3: --help/--version answer before Project.locate, so they work
-      # outside a project; when both appear, the first one seen wins.
-      case @short_circuit
-      when :help
-        @stdout.puts USAGE
-        return 0
-      when :version
-        @stdout.puts "crap4ruby #{VERSION}"
-        return 0
-      end
+      return short_circuit_result if @short_circuit
 
       project = Project.locate(@cwd)
       files = project.select_files(@paths, changed: @changed, cwd: @cwd)
-
-      # §4.1 (v2): the baseline is read and statically validated after file
-      # selection but *before* the empty-selection check — and therefore
-      # before cleanup — so a malformed policy file fails loudly without
-      # costing a test run or deleting an artifact. With no baseline and no
-      # --update-baseline this is one lstat, and §11.1's byte-for-byte v1
-      # guarantee holds from here on.
       baseline_path = File.join(project.root, Baseline::FILENAME)
       baseline = Baseline.read(baseline_path)
       coverage_path = resolve_coverage_path(project)
@@ -91,14 +75,34 @@ module Crap4Ruby
 
       return empty_selection(project, baseline, baseline_path, arguments) if files.empty?
 
-      # §4.3's mismatch predicate, evaluated once per run: conjunct 1 here,
-      # conjunct 5 answered by the early return above, the static conjuncts
-      # 2–4 by ParallelCoverage. §11.4: at the write the shared predicate is
-      # fatal, and refuses before cleanup, the clean-tree check, and any test
-      # run — so an existing baseline stays byte-for-byte untouched.
-      mismatch = @test_command.nil? && ParallelCoverage.mismatch?(project.root)
-      raise Failure.new(ParallelCoverage::REFUSAL, 3) if mismatch && @update_baseline
+      mismatch = parallel_coverage_mismatch?(project)
+      refuse_parallel_baseline_update(mismatch)
+      coverage = acquire_coverage(project, coverage_path, files, mismatch)
+      report, entries = analyze_and_report(files, coverage, project, baseline)
+      conclude(project, baseline, baseline_path, entries, files, arguments, report)
+    end
 
+    private
+
+    def short_circuit_result
+      case @short_circuit
+      when :help
+        @stdout.puts USAGE
+      when :version
+        @stdout.puts "crap4ruby #{VERSION}"
+      end
+      0
+    end
+
+    def parallel_coverage_mismatch?(project)
+      @test_command.nil? && ParallelCoverage.mismatch?(project.root)
+    end
+
+    def refuse_parallel_baseline_update(mismatch)
+      raise Failure.new(ParallelCoverage::REFUSAL, 3) if mismatch && @update_baseline
+    end
+
+    def acquire_coverage(project, coverage_path, files, mismatch)
       if @no_run
         raise Failure.new("--no-run requires a clean working tree", 3) unless project.tree_clean?
         @stderr.puts ParallelCoverage::WARNING if mismatch
@@ -110,21 +114,23 @@ module Crap4Ruby
 
       coverage = CoverageReport.load(coverage_path, analyzed_files: files)
       verify_trusted_artifact(project, coverage, files) if @no_run
-
-      entries, excluded_count = analyze(files, coverage, project)
-      check_unique_keys(entries) if baseline # §11.5
-      report = Report.new(entries, excluded_count: excluded_count)
-      report.render(@stdout)
-
-      # Scoring the rows a second time is the ratchet's business alone: on
-      # the plain v1 path nothing beyond one lstat and one comparison has
-      # been added by §11.
-      return update_baseline(baseline, baseline_path, failing_rows(entries)) if @update_baseline
-      return ratchet_gate(project, baseline, failing_rows(entries), files, arguments) if baseline
-      gate(report)
+      coverage
     end
 
-    private
+    def analyze_and_report(files, coverage, project, baseline)
+      entries, excluded_count = analyze(files, coverage, project)
+      check_unique_keys(entries) if baseline
+      report = Report.new(entries, excluded_count: excluded_count)
+      report.render(@stdout)
+      [report, entries]
+    end
+
+    def conclude(project, baseline, baseline_path, entries, files, arguments, report)
+      return update_baseline(baseline, baseline_path, failing_rows(entries)) if @update_baseline
+      return ratchet_gate(project, baseline, failing_rows(entries), files, arguments) if baseline
+
+      gate(report)
+    end
 
     def parse!
       args = @argv.dup
