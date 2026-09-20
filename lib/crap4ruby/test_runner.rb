@@ -35,31 +35,40 @@ module Crap4Ruby
 
     # Deterministic detection with preflight — no fallbacks (spec §4.3).
     def detect_command
-      spec_dir = Dir.exist?(File.join(@root, "spec"))
-      test_dir = Dir.exist?(File.join(@root, "test"))
-
-      if spec_dir && test_dir
-        refuse "both spec/ and test/ exist"
-      elsif spec_dir
-        refuse "Gemfile.lock does not list rspec-core" unless lockfile_lists?("rspec-core")
-        %w[bundle exec rspec]
-      elsif test_dir
-        bin_rails = File.join(@root, "bin", "rails")
-        if File.exist?(bin_rails)
-          refuse "bin/rails is not executable" unless File.executable?(bin_rails)
-          ["bin/rails", "test"]
-        elsif File.file?(File.join(@root, "Rakefile"))
-          refuse "Gemfile.lock does not list rake" unless lockfile_lists?("rake")
-          %w[bundle exec rake test]
-        else
-          refuse "test/ exists but neither bin/rails nor Rakefile found"
-        end
-      else
-        refuse "neither spec/ nor test/ exists"
-      end
+      spec_dir, test_dir = project_layout
+      refuse "both spec/ and test/ exist" if spec_dir && test_dir
+      return rspec_command if spec_dir
+      return test_command if test_dir
+      refuse "neither spec/ nor test/ exists"
     end
 
     private
+
+    def project_layout
+      [Dir.exist?(File.join(@root, "spec")), Dir.exist?(File.join(@root, "test"))]
+    end
+
+    def rspec_command
+      refuse "Gemfile.lock does not list rspec-core" unless lockfile_lists?("rspec-core")
+      %w[bundle exec rspec]
+    end
+
+    def test_command
+      bin_rails = File.join(@root, "bin", "rails")
+      return rails_test_command(bin_rails) if File.exist?(bin_rails)
+      return rake_test_command if File.file?(File.join(@root, "Rakefile"))
+      refuse "test/ exists but neither bin/rails nor Rakefile found"
+    end
+
+    def rails_test_command(bin_rails)
+      refuse "bin/rails is not executable" unless File.executable?(bin_rails)
+      ["bin/rails", "test"]
+    end
+
+    def rake_test_command
+      refuse "Gemfile.lock does not list rake" unless lockfile_lists?("rake")
+      %w[bundle exec rake test]
+    end
 
     # The `simplecov run` wrapper needs SimpleCov ≥ 1.0 in the analyzed
     # project (spec §2, §4.3) — applies to detected and custom commands
