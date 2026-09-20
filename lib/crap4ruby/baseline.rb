@@ -194,17 +194,42 @@ module Crap4Ruby
 
       def validate_components!(row, where)
         validate_path!(row.path, where)
-        invalid "#{where}: line must be >= 1 (#{row.identity} #{row.location})" unless row.line >= 1
-        invalid "#{where}: comp must be >= 1 (#{row.identity} #{row.location})" unless row.comp >= 1
-        invalid "#{where}: units must be >= 0 (#{row.identity} #{row.location})" unless row.units >= 0
-        unless row.hits >= 0 && row.hits <= row.units
-          invalid "#{where}: hits must satisfy 0 <= hits <= units (#{row.identity} #{row.location})"
-        end
-        # §7.2: the invocation bit is never consulted when units exist, so
-        # a stored `true` there would be a value the metric cannot mean.
-        if row.units.positive? && row.called
-          invalid "#{where}: called must be false when units > 0 (#{row.identity} #{row.location})"
-        end
+        validate_line!(row, where)
+        validate_comp!(row, where)
+        validate_units!(row, where)
+        validate_hits!(row, where)
+        validate_called!(row, where)
+        validate_crap!(row, where)
+      end
+
+      def validate_line!(row, where)
+        return if row.line >= 1
+        invalid "#{where}: line must be >= 1 (#{row.identity} #{row.location})"
+      end
+
+      def validate_comp!(row, where)
+        return if row.comp >= 1
+        invalid "#{where}: comp must be >= 1 (#{row.identity} #{row.location})"
+      end
+
+      def validate_units!(row, where)
+        return if row.units >= 0
+        invalid "#{where}: units must be >= 0 (#{row.identity} #{row.location})"
+      end
+
+      def validate_hits!(row, where)
+        return if row.hits >= 0 && row.hits <= row.units
+        invalid "#{where}: hits must satisfy 0 <= hits <= units (#{row.identity} #{row.location})"
+      end
+
+      # §7.2: the invocation bit is never consulted when units exist, so
+      # a stored `true` there would be a value the metric cannot mean.
+      def validate_called!(row, where)
+        return unless row.units.positive? && row.called
+        invalid "#{where}: called must be false when units > 0 (#{row.identity} #{row.location})"
+      end
+
+      def validate_crap!(row, where)
         return if row.crap > THRESHOLD
         invalid "#{where}: #{row.identity} (#{row.location}) recomputes to CRAP " \
                 "#{Report.decimal(row.crap, 2)} — a row at or under the threshold " \
