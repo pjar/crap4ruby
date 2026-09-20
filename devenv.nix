@@ -6,13 +6,13 @@
   # (Prism + json as stdlib), exercised separately in CI.
   languages.ruby = {
     enable = true;
-    version = "4.0.5";
+    version = "4.0.7";
   };
 
   packages = [ pkgs.git ];
 
   enterTest = ''
-    ruby --version | grep --color=auto "4.0.5"
+    ruby --version | grep --color=auto "4.0.7"
     bundle check || bundle install
     bundle exec rake test
   '';

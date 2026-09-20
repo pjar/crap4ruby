@@ -17,9 +17,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
-      - uses: cachix/cachix-action@v16
+      - uses: cachix/cachix-action@v17
         with:
           name: devenv
       - name: Install devenv
@@ -30,16 +30,16 @@ jobs:
         run: devenv test
 
   # The CRuby 3.3 floor (spec §2, gemspec required_ruby_version). Must NOT
-  # use `devenv test`: enterTest asserts the pinned 4.0.5 toolchain. The
+  # use `devenv test`: enterTest asserts the pinned 4.0.7 toolchain. The
   # lsp override is load-bearing — solargraph-lsp's nokogiri does not
-  # compile under 3.3 on the current nixpkgs pin. 3.3.9 is pinned exactly
-  # (the verified floor), consistent with the determinism ethos.
+  # compile under 3.3 on the current nixpkgs pin. 3.3.12 is pinned exactly
+  # as the maintained 3.3 line, consistent with the determinism ethos.
   ruby-floor:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
-      - uses: cachix/cachix-action@v16
+      - uses: cachix/cachix-action@v17
         with:
           name: devenv
       - name: Install devenv
@@ -48,5 +48,5 @@ jobs:
         run: >-
           devenv shell
           --option languages.ruby.lsp.enable:bool false
-          --option languages.ruby.version:string "3.3.9"
+          --option languages.ruby.version:string "3.3.12"
           -- bash -c 'ruby -v && (bundle check || bundle install) && bundle exec rake test'

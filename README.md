@@ -205,7 +205,7 @@ override is required — the default language server does not build under
 
 ```
 devenv shell --option languages.ruby.lsp.enable:bool false \
-  --option languages.ruby.version:string "3.3.9" \
+  --option languages.ruby.version:string "3.3.12" \
   -- bash -c 'ruby -v && (bundle check || bundle install) && bundle exec rake test'
 ```
 
