@@ -132,20 +132,33 @@ module Crap4Ruby
     def parse_porcelain
       toplevel = run_git("rev-parse", "--show-toplevel", exit_code: 1).strip
       tokens = run_git("status", "--porcelain=v1", "-z", "--untracked-files=all", exit_code: 1).split("\0")
-      selected = []
-      removed = []
+      records = porcelain_records(tokens)
+      selected = records.filter_map { |x, y, path, _origin| selected_path(x, y, path, toplevel) }
+      removed = records.flat_map { |x, y, path, origin| removed_paths(x, y, path, origin, toplevel) }
+      Porcelain.new(selected: selected, removed: removed)
+    end
+
+    def porcelain_records(tokens)
+      records = []
       until tokens.empty?
         entry = tokens.shift
         next if entry.nil? || entry.length < 4
         x, y = entry[0], entry[1]
-        path = entry[3..]
-        origin = tokens.shift if renamed_or_copied?(x, y)
-        removed << relative(File.expand_path(origin, toplevel)) if origin && (x == "R" || y == "R")
-        removed << relative(File.expand_path(path, toplevel)) if x == "D" || y == "D"
-        next unless selected_status?(x, y) && path.end_with?(".rb")
-        selected << File.expand_path(path, toplevel)
+        records << [x, y, entry[3..], renamed_or_copied?(x, y) ? tokens.shift : nil]
       end
-      Porcelain.new(selected: selected, removed: removed)
+      records
+    end
+
+    def selected_path(x, y, path, toplevel)
+      return unless selected_status?(x, y) && path.end_with?(".rb")
+      File.expand_path(path, toplevel)
+    end
+
+    def removed_paths(x, y, path, origin, toplevel)
+      removed = []
+      removed << relative(File.expand_path(origin, toplevel)) if origin && (x == "R" || y == "R")
+      removed << relative(File.expand_path(path, toplevel)) if x == "D" || y == "D"
+      removed
     end
 
     def renamed_or_copied?(x, y)
