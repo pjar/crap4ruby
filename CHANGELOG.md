@@ -7,24 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Implements [spec.md](spec.md) 0.4.
+## [0.1.0] - 2026-09-20
+
+First public release, implementing [spec.md](spec.md) 0.4. The spec plus the
+conformance fixture corpus under `test/fixtures/` is the normative contract.
 
 ### Added
 
-- `--version` flag: prints exactly `crap4ruby <version>`, short-circuits like
-  `--help` (spec §3, CRA-47).
+- CRAP score gate: `CRAP(m) = comp(m)² × (1 − cov(m))³ + comp(m)` per method,
+  failing the run when any method exceeds the fixed, non-configurable
+  threshold of 8.0 (spec §1, §8).
+- Cyclomatic complexity via a Prism visitor with normative node
+  classification, including deliberate deviations from RuboCop counting:
+  every safe-navigation call and every block counts (spec §6).
+- Coverage attribution from SimpleCov ≥ 1.0 `coverage.json`: line and branch
+  units with innermost-span ownership, declaration-line exclusion, an
+  invocation-bit fallback for zero-unit methods, and ignore-marker exclusion
+  surfaced in the report footer (spec §7).
+- CLI: analyze `app/` and `lib/` by default or explicit paths;
+  `--changed` (git-changed files), `--no-run` (trusted-artifact mode with
+  clean-tree, commit, and source verification), `--test-command`,
+  `--coverage-file`, `--help`, and `--version` (spec §3, §4).
 - Analyzed-grammar pin: source is parsed as Ruby 4.0 grammar regardless of the
   running interpreter, with a normative upgrade policy (spec §2, CRA-46).
-- Baseline-ratchet design for legacy adoption, specified as spec §11; the
-  byte-for-byte no-baseline guarantee is pinned by integration freeze tests
-  (CRA-45).
-- Baseline ratchet, implemented (spec §11, CRA-51): a `crap4ruby-baseline.json`
-  in the project root grandfathers the offenders it lists, fails new and
-  worsened ones (exit 2), and demands `--update-baseline` for rows that went
-  stale (exit 3). `--update-baseline` performs a full run and rewrites the
-  file in canonical bytes, shrink-only — a write that would add or worsen a
-  row is refused (exit 2) with the file untouched. With no baseline present,
-  behavior is byte-for-byte unchanged.
+- Baseline ratchet for legacy adoption (spec §11, CRA-45, CRA-51): a
+  `crap4ruby-baseline.json` in the project root grandfathers the offenders it
+  lists, fails new and worsened ones (exit 2), and demands
+  `--update-baseline` for rows that went stale (exit 3).
+  `--update-baseline` performs a full run and rewrites the file in canonical
+  bytes, shrink-only — a write that would add or worsen a row is refused
+  (exit 2) with the file untouched. With no baseline present, behavior is
+  byte-for-byte unchanged.
 - Parallel-coverage mismatch detection (spec §4.3/§11.4, CRA-49): when the
   detected test command is `bin/rails test`, the test tree declares
   `parallelize`, and `.simplecov` does not literally set
@@ -35,6 +48,16 @@ Implements [spec.md](spec.md) 0.4.
   `--update-baseline` invocation refuse with exit 3 and the baseline
   untouched: a baseline built from garbage coverage is irreversible,
   reviewed damage.
+- Deterministic report sorted by CRAP descending with total-order
+  tie-breakers, rendered with exact Rational arithmetic and half-up rounding
+  (spec §8).
+- Exit codes: 0 ok, 1 usage error, 2 threshold exceeded, 3 coverage
+  unavailable or invalid, 4 test command failed (spec §3).
+- Test-command detection with preflight checks for RSpec, Rails, and Rake
+  layouts, executing under `bundle exec simplecov run` (spec §4.3).
+- Conformance corpus: annotated complexity fixtures and real-SimpleCov
+  coverage cases as the executable half of the contract (spec §9).
+- devenv-only development toolchain (see AGENTS.md).
 
 ### Changed
 
@@ -59,35 +82,3 @@ Implements [spec.md](spec.md) 0.4.
   testing silently discards worker coverage and crap4ruby gates on boot-only
   data; a troubleshooting note names the symptom and warns off the serial
   `PARALLEL_WORKERS=1` workaround (docs only, CRA-48).
-
-## [0.1.0] - 2026-07-26
-
-Initial release, implementing [spec.md](spec.md) 0.3. The spec plus the
-conformance fixture corpus under `test/fixtures/` is the normative contract.
-
-### Added
-
-- CRAP score gate: `CRAP(m) = comp(m)² × (1 − cov(m))³ + comp(m)` per method,
-  failing the run when any method exceeds the fixed, non-configurable
-  threshold of 8.0 (spec §1, §8).
-- Cyclomatic complexity via a Prism visitor with normative node
-  classification, including deliberate deviations from RuboCop counting:
-  every safe-navigation call and every block counts (spec §6).
-- Coverage attribution from SimpleCov ≥ 1.0 `coverage.json`: line and branch
-  units with innermost-span ownership, declaration-line exclusion, an
-  invocation-bit fallback for zero-unit methods, and ignore-marker exclusion
-  surfaced in the report footer (spec §7).
-- CLI: analyze `app/` and `lib/` by default or explicit paths;
-  `--changed` (git-changed files), `--no-run` (trusted-artifact mode with
-  clean-tree, commit, and source verification), `--test-command`,
-  `--coverage-file`, `--help` (spec §3, §4).
-- Deterministic report sorted by CRAP descending with total-order
-  tie-breakers, rendered with exact Rational arithmetic and half-up rounding
-  (spec §8).
-- Exit codes: 0 ok, 1 usage error, 2 threshold exceeded, 3 coverage
-  unavailable or invalid, 4 test command failed (spec §3).
-- Test-command detection with preflight checks for RSpec, Rails, and Rake
-  layouts, executing under `bundle exec simplecov run` (spec §4.3).
-- Conformance corpus: annotated complexity fixtures and real-SimpleCov
-  coverage cases as the executable half of the contract (spec §9).
-- devenv-only development toolchain (see AGENTS.md).

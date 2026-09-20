@@ -18,6 +18,28 @@ CRAP(m) = comp(m)² × (1 − cov(m))³ + comp(m)
 A complex method escapes the gate only by being tested; an untested method
 escapes only by being simple.
 
+## Installation
+
+Add crap4ruby to the analyzed project's `Gemfile`:
+
+```ruby
+gem "crap4ruby", require: false
+```
+
+Then install and run it through the project bundle:
+
+```sh
+bundle install
+bundle exec crap4ruby
+```
+
+For a standalone executable instead:
+
+```sh
+gem install crap4ruby
+crap4ruby
+```
+
 ## Requirements
 
 - CRuby ≥ 3.3 (the analyzed project and crap4ruby itself); analyzed files

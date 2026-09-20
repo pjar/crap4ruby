@@ -11,11 +11,11 @@ Gem::Specification.new do |spec|
 
   spec.required_ruby_version = ">= 3.3"
   spec.license = "MIT"
-  spec.homepage = "https://github.com/pjar/crap4ruby"
+  spec.homepage = "https://github.com/webTechSponge/crap4ruby"
   spec.metadata = {
     "rubygems_mfa_required" => "true",
-    "source_code_uri" => "https://github.com/pjar/crap4ruby",
-    "changelog_uri" => "https://github.com/pjar/crap4ruby/blob/main/CHANGELOG.md"
+    "source_code_uri" => "https://github.com/webTechSponge/crap4ruby",
+    "changelog_uri" => "https://github.com/webTechSponge/crap4ruby/blob/main/CHANGELOG.md"
   }
 
   # Git-scoped so an untracked stray file can never ship; the plain globs
