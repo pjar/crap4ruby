@@ -28,12 +28,17 @@ escapes only by being simple.
 
 ```ruby
 SimpleCov.configure do
+  command_name "Unit Tests"
   enable_coverage :branch
   enable_coverage :method
   merge_subprocesses true # required when tests fork parallel workers (Rails' default)
   cover "app/**/*.rb", "lib/**/*.rb"
 end
 ```
+`command_name` gives every process in one logical run the same result-set
+identity. Without it, `simplecov run -- bundle exec rake test` labels the Rake
+parent `Unknown Test Framework` and the spawned test process `Unit Tests`,
+causing SimpleCov's concurrent-overwrite warning.
 
 **Why `merge_subprocesses`:** SimpleCov's fork hook is off by default, so a
 suite that forks parallel test workers — Rails parallelizes by default via

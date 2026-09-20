@@ -43,6 +43,7 @@ class ParallelCoverageConformanceTest < Minitest::Test
 
   SIMPLECOV_BARE = <<~RUBY
     SimpleCov.configure do
+      command_name "Unit Tests"
       enable_coverage :branch
       enable_coverage :method
       cover "lib/**/*.rb"

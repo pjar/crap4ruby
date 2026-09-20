@@ -54,6 +54,7 @@ class RatchetConformanceTest < Minitest::Test
 
   SIMPLECOV = <<~RUBY
     SimpleCov.configure do
+      command_name "Unit Tests"
       enable_coverage :branch
       enable_coverage :method
       cover "lib/**/*.rb"
