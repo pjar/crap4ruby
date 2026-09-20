@@ -11,6 +11,12 @@ module Crap4Ruby
     # The shape argument_paths returns, and what a run with no explicit
     # arguments contributes to the §11.3 freshness scope: nothing.
     NO_ARGUMENTS = { directories: [], files: [], root: false }.freeze
+    # §3 statuses that select a path independently on either porcelain side.
+    # DD is also selected: it is the one unmerged pair whose letters are
+    # otherwise deletion-only.
+    SELECTED_STATUS_LETTERS = %w[M A T R C ? U].freeze
+    SELECTED_STATUS_PAIRS = [%w[D D].freeze].freeze
+    private_constant :SELECTED_STATUS_LETTERS, :SELECTED_STATUS_PAIRS
 
     attr_reader :root
 
@@ -166,8 +172,8 @@ module Crap4Ruby
     end
 
     def selected_status?(x, y)
-      return true if x == "U" || y == "U" || (x == "A" && y == "A") || (x == "D" && y == "D")
-      [x, y].any? { |s| %w[M A T R C ?].include?(s) }
+      [x, y].any? { |status| SELECTED_STATUS_LETTERS.include?(status) } ||
+        SELECTED_STATUS_PAIRS.include?([x, y])
     end
 
     def run_git(*args, exit_code:)
