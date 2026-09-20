@@ -22,6 +22,24 @@ module Crap4Ruby
       Exit codes: 0 ok · 1 usage error · 2 CRAP threshold exceeded · 3 coverage unavailable/invalid · 4 tests failed
     TEXT
 
+    SHORT_CIRCUITS = {
+      "--help" => :help,
+      "--version" => :version
+    }.freeze
+
+    SWITCHES = {
+      "--changed" => :@changed,
+      "--no-run" => :@no_run,
+      "--update-baseline" => :@update_baseline
+    }.freeze
+
+    VALUE_OPTIONS = {
+      "--test-command" => :@test_command,
+      "--coverage-file" => :@coverage_file
+    }.freeze
+
+    private_constant :SHORT_CIRCUITS, :SWITCHES, :VALUE_OPTIONS
+
     def self.run(argv, stdout: $stdout, stderr: $stderr, cwd: Dir.pwd)
       new(argv, stdout: stdout, stderr: stderr, cwd: cwd).run
     rescue Failure => failure
@@ -111,28 +129,49 @@ module Crap4Ruby
     def parse!
       args = @argv.dup
       until args.empty?
-        arg = args.shift
-        case arg
-        when "--help" then @short_circuit ||= :help
-        when "--version" then @short_circuit ||= :version
-        when "--changed" then @changed = true
-        when "--no-run" then @no_run = true
-        when "--test-command" then @test_command = option_value(arg, args)
-        when /\A--test-command=(.+)\z/m then @test_command = Regexp.last_match(1)
-        when "--coverage-file" then @coverage_file = option_value(arg, args)
-        when /\A--coverage-file=(.+)\z/m then @coverage_file = Regexp.last_match(1)
-        when "--update-baseline" then @update_baseline = true
-        when /\A-/ then raise Failure.new("unknown option: #{arg}\n\n#{USAGE}", 1)
-        else @paths << arg
-        end
+        parse_argument(args.shift, args)
       end
-      if @test_command && @no_run
-        raise Failure.new("--test-command cannot be combined with --no-run", 1)
-      end
+      validate_option_composition
+    end
+
+    def parse_argument(arg, args)
+      return parse_short_circuit(arg) if SHORT_CIRCUITS.key?(arg)
+      return enable_switch(arg) if SWITCHES.key?(arg)
+
+      parse_value_option_or_path(arg, args)
+    end
+
+    def parse_short_circuit(arg)
+      @short_circuit ||= SHORT_CIRCUITS.fetch(arg)
+    end
+
+    def enable_switch(arg)
+      instance_variable_set(SWITCHES.fetch(arg), true)
+    end
+
+    def parse_value_option_or_path(arg, args)
+      field = VALUE_OPTIONS[arg]
+      return instance_variable_set(field, option_value(arg, args)) if field
+
+      option, value = arg.split("=", 2)
+      field = VALUE_OPTIONS[option]
+      return instance_variable_set(field, value) if field && value && !value.empty?
+
+      parse_path_or_unknown_option(arg)
+    end
+
+    def parse_path_or_unknown_option(arg)
+      raise Failure.new("unknown option: #{arg}\n\n#{USAGE}", 1) if arg.start_with?("-")
+
+      @paths << arg
+    end
+
+    def validate_option_composition
+      raise Failure.new("--test-command cannot be combined with --no-run", 1) if @test_command && @no_run
       # §11.4: a partial analysis must never rewrite the baseline.
-      if @update_baseline && (@changed || @paths.any?)
-        raise Failure.new("--update-baseline cannot be combined with --changed or explicit paths", 1)
-      end
+      return unless @update_baseline && (@changed || @paths.any?)
+
+      raise Failure.new("--update-baseline cannot be combined with --changed or explicit paths", 1)
     end
 
     def option_value(flag, args)
