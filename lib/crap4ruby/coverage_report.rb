@@ -98,10 +98,21 @@ module Crap4Ruby
     # entry (spec §4.4). Only analyzed files are validated.
     def validate_file(file)
       entry = entry_for(file)
-      if entry.nil?
-        invalid "#{file} is not in the coverage report — likely an unloaded file " \
-                "without a `cover` pattern, or excluded by a SimpleCov filter"
-      end
+      validate_coverage_entry(file, entry)
+      line_count = source_line_count(file)
+      lines = validate_lines(file, entry["lines"], line_count)
+      validate_branches(file, entry["branches"], line_count)
+      validate_methods(file, entry["methods"], line_count)
+      validate_source(file, entry["source"], lines)
+    end
+
+    def validate_coverage_entry(file, entry)
+      return unless entry.nil?
+      invalid "#{file} is not in the coverage report — likely an unloaded file " \
+              "without a `cover` pattern, or excluded by a SimpleCov filter"
+    end
+
+    def source_line_count(file)
       raise Failure.new("analyzed file absent: #{file}", 3) unless File.file?(file)
       # Explicit UTF-8, matching the analyzed-file reads in CLI (no-locale
       # environments default to US-ASCII and would raise on multibyte).
@@ -110,52 +121,79 @@ module Crap4Ruby
       # the single boundary where undecodable input maps to exit 3 instead
       # of an unhandled encoding error downstream.
       raise Failure.new("analyzed file is not valid UTF-8: #{file}", 3) unless content.valid_encoding?
-      line_count = self.class.logical_lines(content).size
+      self.class.logical_lines(content).size
+    end
 
-      lines = entry["lines"]
+    def validate_lines(file, lines, line_count)
       invalid "#{file}: lines is not an array" unless lines.is_a?(Array)
       unless lines.size == line_count
         invalid "#{file}: lines has #{lines.size} entries for #{line_count} lines (stale report?)"
       end
-      lines.each_with_index do |value, index|
-        next if counter?(value) || value.nil?
-        invalid "#{file}: lines[#{index}] is #{value.inspect}"
-      end
+      lines.each_with_index { |value, index| validate_line_counter(file, value, index) }
+      lines
+    end
 
-      branches = entry["branches"]
+    def validate_line_counter(file, value, index)
+      return if counter?(value) || value.nil?
+      invalid "#{file}: lines[#{index}] is #{value.inspect}"
+    end
+
+    def validate_branches(file, branches, line_count)
       invalid "#{file}: branches is not an array" unless branches.is_a?(Array)
       branches.each_with_index do |branch, index|
-        %w[start_line end_line report_line].each do |field|
-          value = branch.is_a?(Hash) ? branch[field] : nil
-          next if value.is_a?(Integer) && value.between?(1, line_count)
-          invalid "#{file}: branches[#{index}].#{field} is #{value.inspect}"
-        end
-        if branch["start_line"] > branch["end_line"]
-          invalid "#{file}: branches[#{index}] span is inverted"
-        end
-        invalid "#{file}: branches[#{index}].coverage is #{branch["coverage"].inspect}" unless counter?(branch["coverage"])
+        validate_branch(file, branch, index, line_count)
       end
+    end
 
-      methods = entry["methods"]
+    def validate_branch(file, branch, index, line_count)
+      validate_branch_lines(file, branch, index, line_count)
+      if branch["start_line"] > branch["end_line"]
+        invalid "#{file}: branches[#{index}] span is inverted"
+      end
+      validate_counter(file, "branches[#{index}].coverage", branch["coverage"])
+    end
+
+    def validate_branch_lines(file, branch, index, line_count)
+      %w[start_line end_line report_line].each do |field|
+        value = branch.is_a?(Hash) ? branch[field] : nil
+        next if value.is_a?(Integer) && value.between?(1, line_count)
+        invalid "#{file}: branches[#{index}].#{field} is #{value.inspect}"
+      end
+    end
+
+    def validate_methods(file, methods, line_count)
       invalid "#{file}: methods is not an array" unless methods.is_a?(Array)
       methods.each_with_index do |method, index|
-        invalid "#{file}: methods[#{index}].name is not a string" unless method.is_a?(Hash) && method["name"].is_a?(String)
-        %w[start_line end_line].each do |field|
-          value = method[field]
-          next if value.is_a?(Integer) && value.between?(1, line_count)
-          invalid "#{file}: methods[#{index}].#{field} is #{value.inspect}"
-        end
-        if method["start_line"] > method["end_line"]
-          invalid "#{file}: methods[#{index}] span is inverted"
-        end
-        invalid "#{file}: methods[#{index}].coverage is #{method["coverage"].inspect}" unless counter?(method["coverage"])
+        validate_method(file, method, index, line_count)
       end
+    end
 
-      source = entry["source"]
-      return if source.nil?
-      unless source.is_a?(Array) && source.size == lines.size
-        invalid "#{file}: source length does not match lines length"
+    def validate_method(file, method, index, line_count)
+      invalid "#{file}: methods[#{index}].name is not a string" unless method.is_a?(Hash) && method["name"].is_a?(String)
+      validate_method_lines(file, method, index, line_count)
+      if method["start_line"] > method["end_line"]
+        invalid "#{file}: methods[#{index}] span is inverted"
       end
+      validate_counter(file, "methods[#{index}].coverage", method["coverage"])
+    end
+
+    def validate_method_lines(file, method, index, line_count)
+      %w[start_line end_line].each do |field|
+        value = method[field]
+        next if value.is_a?(Integer) && value.between?(1, line_count)
+        invalid "#{file}: methods[#{index}].#{field} is #{value.inspect}"
+      end
+    end
+
+    def validate_counter(file, field, value)
+      return if counter?(value)
+      invalid "#{file}: #{field} is #{value.inspect}"
+    end
+
+    def validate_source(file, source, lines)
+      return if source.nil?
+      return if source.is_a?(Array) && source.size == lines.size
+      invalid "#{file}: source length does not match lines length"
     end
 
     def counter?(value)
